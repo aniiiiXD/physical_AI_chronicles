@@ -22,7 +22,7 @@ from lerobot.policies.smolvla.modeling_smolvla import SmolVLAPolicy
 # ── load checkpoint ───────────────────────────────────────────────────────────
 print("Loading SmolVLA from HuggingFace Hub...")
 policy = SmolVLAPolicy.from_pretrained("lerobot/smolvla_base")
-policy = policy.to("cuda", dtype=torch.bfloat16)
+policy = policy.to("cuda")  # float32 — avoids bf16/f32 mismatch in diffusion denoiser
 policy.eval()
 
 print(f"\nLoaded on : {next(policy.parameters()).device}")
@@ -55,8 +55,8 @@ print(f"Token shape: {lang_tokens.shape}")
 # build dummy batch from config
 batch = {}
 for key, shape in image_keys.items():
-    batch[key] = torch.zeros(1, *shape, device="cuda", dtype=torch.bfloat16)
-batch["observation.state"]                   = torch.zeros(1, state_dim, device="cuda", dtype=torch.bfloat16)
+    batch[key] = torch.zeros(1, *shape, device="cuda")
+batch["observation.state"]                   = torch.zeros(1, state_dim, device="cuda")
 batch["observation.language.tokens"]         = lang_tokens
 batch["observation.language.attention_mask"] = lang_mask.bool()
 
