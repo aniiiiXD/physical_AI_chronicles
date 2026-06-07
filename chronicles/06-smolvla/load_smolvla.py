@@ -16,6 +16,7 @@ SmolVLA architecture:
 """
 
 import torch
+from transformers import AutoTokenizer
 from lerobot.policies.smolvla.modeling_smolvla import SmolVLAPolicy
 
 # ── load checkpoint ───────────────────────────────────────────────────────────
@@ -41,11 +42,20 @@ for key, feat in policy.config.input_features.items():
     else:
         state_dim = feat.shape[0]
 
+# tokenize the language instruction — SmolVLA requires text input
+# (it's a vision-LANGUAGE-action model, text tells it what task to do)
+tokenizer = AutoTokenizer.from_pretrained("HuggingFaceTB/SmolVLM2-500M-Video-Instruct")
+task = "pick up the red block and place it in the box"
+lang_tokens = tokenizer(task, return_tensors="pt", padding=True)["input_ids"].to("cuda")
+print(f"\nTask: \"{task}\"")
+print(f"Token shape: {lang_tokens.shape}")
+
 # build dummy batch from config
 batch = {}
 for key, shape in image_keys.items():
     batch[key] = torch.zeros(1, *shape, device="cuda", dtype=torch.bfloat16)
-batch["observation.state"] = torch.zeros(1, state_dim, device="cuda", dtype=torch.bfloat16)
+batch["observation.state"]          = torch.zeros(1, state_dim, device="cuda", dtype=torch.bfloat16)
+batch["observation.language.tokens"] = lang_tokens
 
 with torch.no_grad():
     action = policy.select_action(batch)
