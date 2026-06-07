@@ -1,0 +1,40 @@
+# build artifacts
+**/build/
+**/CMakeFiles/
+**/CMakeCache.txt
+**/cmake_install.cmake
+**/*.o
+**/*.a
+**/*.so
+**/*.dylib
+**/*.dSYM/
+
+# CUDA
+**/*.ptx
+**/*.cubin
+**/*.fatbin
+
+# Python
+**/__pycache__/
+**/*.pyc
+**/.venv/
+**/venv/
+
+# profiler output
+**/*.nsys-rep
+**/*.ncu-rep
+**/*.qdrep
+**/*.sqlite
+
+# binaries
+**/simd_bench
+**/vec_add
+**/matmul
+**/cache_bench
+**/matmul_bench
+
+# plots (regenerate from source)
+**/*.png
+
+# OS
+.DS_Store

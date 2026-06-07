@@ -1,0 +1,1296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Hierarchy — CPU & GPU Memory Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500;600&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+/* ── RESET ─────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+/* ── TOKENS ────────────────────────────────────────────────────────────────── */
+:root {
+  --bg:       #07090F;
+  --sf1:      #0C1018;
+  --sf2:      #121924;
+  --sf3:      #192130;
+  --border:   rgba(255,255,255,0.07);
+  --border2:  rgba(255,255,255,0.12);
+
+  --cpu:      #3D9EFF;
+  --cpu-dim:  rgba(61,158,255,0.12);
+  --cpu-mid:  rgba(61,158,255,0.25);
+
+  --gpu:      #00FFAA;
+  --gpu-dim:  rgba(0,255,170,0.10);
+  --gpu-mid:  rgba(0,255,170,0.22);
+
+  --reg:      #FF6B6B;
+  --reg-dim:  rgba(255,107,107,0.12);
+
+  --amber:    #FFB347;
+  --amber-dim:rgba(255,179,71,0.10);
+
+  --violet:   #A78BFA;
+
+  --t:        #9BADC0;
+  --tb:       #E8EEF7;
+  --td:       #3D5269;
+
+  --mono:     'IBM Plex Mono', monospace;
+  --display:  'Syne', sans-serif;
+  --body:     'DM Sans', sans-serif;
+
+  --ease-out-expo: cubic-bezier(0.16,1,0.3,1);
+}
+
+/* ── BASE ──────────────────────────────────────────────────────────────────── */
+body {
+  background: var(--bg);
+  color: var(--t);
+  font-family: var(--body);
+  line-height: 1.7;
+  overflow-x: hidden;
+}
+
+/* dot-grid background */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.035) 1px, transparent 1px);
+  background-size: 28px 28px;
+  pointer-events: none;
+}
+
+::selection { background: var(--cpu-mid); color: var(--tb); }
+
+/* custom scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--sf3); border-radius: 2px; }
+
+/* ── NAV ───────────────────────────────────────────────────────────────────── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 2.5rem; height: 56px;
+  background: rgba(7,9,15,0.82);
+  backdrop-filter: blur(20px) saturate(1.4);
+  border-bottom: 1px solid var(--border);
+}
+.nav-wordmark {
+  font-family: var(--mono); font-size: 0.72rem; font-weight: 500;
+  color: var(--td); letter-spacing: 0.08em; text-transform: uppercase;
+}
+.nav-wordmark span { color: var(--cpu); }
+.nav-links { display: flex; gap: 2rem; }
+.nav-links a {
+  font-family: var(--mono); font-size: 0.7rem; color: var(--td);
+  text-decoration: none; letter-spacing: 0.04em;
+  transition: color 0.2s;
+}
+.nav-links a:hover { color: var(--tb); }
+.nav-status {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-family: var(--mono); font-size: 0.68rem; color: var(--td);
+}
+.nav-status-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--gpu);
+  box-shadow: 0 0 8px var(--gpu);
+  animation: pulse 2s ease infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+/* ── HERO ──────────────────────────────────────────────────────────────────── */
+#hero {
+  position: relative; min-height: 100vh;
+  display: flex; flex-direction: column;
+  align-items: flex-start; justify-content: flex-end;
+  padding: 8rem 2.5rem 5rem; overflow: hidden;
+}
+#bitCanvas { position: absolute; inset: 0; z-index: 0; }
+.hero-grain {
+  position: absolute; inset: 0; z-index: 1;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
+  opacity: 0.4; pointer-events: none;
+}
+.hero-vignette {
+  position: absolute; inset: 0; z-index: 2;
+  background: radial-gradient(ellipse 80% 60% at 50% 100%, transparent 0%, rgba(7,9,15,0.9) 80%);
+}
+.hero-content { position: relative; z-index: 3; max-width: 900px; }
+.hero-kicker {
+  font-family: var(--mono); font-size: 0.72rem; font-weight: 500;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--cpu); margin-bottom: 1.5rem;
+  display: flex; align-items: center; gap: 0.75rem;
+}
+.hero-kicker::before {
+  content: ''; width: 32px; height: 1px; background: var(--cpu);
+}
+h1 {
+  font-family: var(--display); font-size: clamp(3rem, 7vw, 6.5rem);
+  font-weight: 800; line-height: 0.95; letter-spacing: -0.04em;
+  color: var(--tb); margin-bottom: 1.75rem;
+}
+h1 em { font-style: normal; color: var(--cpu); }
+h1 .g { color: var(--gpu); }
+.hero-desc {
+  font-size: 1.05rem; color: var(--t); max-width: 540px;
+  line-height: 1.8; margin-bottom: 2.5rem;
+}
+.hero-tags { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.htag {
+  font-family: var(--mono); font-size: 0.7rem; font-weight: 500;
+  padding: 0.3rem 0.8rem; border-radius: 2px;
+  border: 1px solid; letter-spacing: 0.06em;
+}
+.htag.cpu { border-color: var(--cpu); color: var(--cpu); background: var(--cpu-dim); }
+.htag.gpu { border-color: var(--gpu); color: var(--gpu); background: var(--gpu-dim); }
+.htag.n   { border-color: var(--border2); color: var(--td); }
+
+/* scroll indicator */
+.scroll-ind {
+  position: absolute; right: 2.5rem; bottom: 3rem; z-index: 3;
+  display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+  font-family: var(--mono); font-size: 0.65rem; color: var(--td);
+  letter-spacing: 0.1em; text-transform: uppercase;
+  writing-mode: vertical-rl;
+}
+.scroll-track {
+  width: 1px; height: 60px; background: var(--border2);
+  position: relative; overflow: hidden;
+}
+.scroll-track::after {
+  content: ''; position: absolute; top: -100%;
+  width: 1px; height: 50%; background: linear-gradient(to bottom, transparent, var(--cpu));
+  animation: scrollDown 1.8s ease infinite;
+}
+@keyframes scrollDown { to { top: 200%; } }
+
+/* ── SECTION SHELL ─────────────────────────────────────────────────────────── */
+.sec {
+  position: relative; z-index: 1;
+  padding: 6rem 2.5rem;
+  border-top: 1px solid var(--border);
+}
+.sec.alt { background: var(--sf1); }
+.container { max-width: 1120px; margin: 0 auto; }
+.sec-num {
+  position: absolute; top: 3rem; right: 2.5rem;
+  font-family: var(--display); font-size: clamp(6rem, 14vw, 12rem);
+  font-weight: 800; line-height: 1;
+  color: rgba(255,255,255,0.025);
+  pointer-events: none; user-select: none;
+  letter-spacing: -0.05em;
+}
+.sec-label {
+  font-family: var(--mono); font-size: 0.68rem; font-weight: 500;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  margin-bottom: 0.6rem;
+  display: flex; align-items: center; gap: 0.6rem;
+}
+.sec-label.cpu { color: var(--cpu); }
+.sec-label.gpu { color: var(--gpu); }
+.sec-label.both { color: var(--violet); }
+.sec-label::before { content: '—'; opacity: 0.5; }
+h2 {
+  font-family: var(--display); font-size: clamp(1.8rem, 3.5vw, 3rem);
+  font-weight: 800; color: var(--tb); letter-spacing: -0.03em;
+  line-height: 1.1; margin-bottom: 0.75rem;
+}
+.lead {
+  font-size: 1rem; color: var(--t); max-width: 620px;
+  line-height: 1.8; margin-bottom: 2.5rem;
+}
+h3 {
+  font-family: var(--display); font-size: 1.05rem; font-weight: 700;
+  color: var(--tb); margin-bottom: 0.6rem;
+}
+p { margin-bottom: 0.9rem; font-size: 0.9rem; }
+
+/* ── GRID ──────────────────────────────────────────────────────────────────── */
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+.g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.25rem; }
+@media(max-width:780px) { .g2, .g3 { grid-template-columns: 1fr; } }
+
+/* ── CARD ──────────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--sf2); border: 1px solid var(--border);
+  border-radius: 0px; padding: 1.75rem;
+  position: relative; overflow: hidden;
+}
+.card::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.025) 0%, transparent 60%);
+  pointer-events: none;
+}
+.card.cpu-card { border-color: rgba(61,158,255,0.2); }
+.card.cpu-card::after {
+  content: ''; position: absolute; top: 0; left: 0;
+  width: 100%; height: 2px;
+  background: linear-gradient(90deg, var(--cpu), transparent);
+}
+.card.gpu-card { border-color: rgba(0,255,170,0.2); }
+.card.gpu-card::after {
+  content: ''; position: absolute; top: 0; left: 0;
+  width: 100%; height: 2px;
+  background: linear-gradient(90deg, var(--gpu), transparent);
+}
+
+/* ── REGISTER DISPLAY ──────────────────────────────────────────────────────── */
+.reg-panel {
+  font-family: var(--mono);
+  display: grid; grid-template-columns: 1fr 1fr; gap: 3px;
+}
+.reg-row {
+  display: grid; grid-template-columns: 40px 1fr 80px;
+  align-items: center; gap: 6px; padding: 4px 6px;
+  border: 1px solid transparent; cursor: pointer;
+  transition: all 0.15s; border-radius: 1px;
+}
+.reg-row:hover { background: rgba(255,255,255,0.04); border-color: var(--border2); }
+.reg-row.lit { background: var(--reg-dim); border-color: rgba(255,107,107,0.3); }
+.rn { font-size: 0.67rem; font-weight: 600; color: var(--reg); }
+.rbits {
+  height: 6px; background: rgba(255,255,255,0.06); border-radius: 1px;
+  overflow: hidden; position: relative;
+}
+.rbits-fill {
+  position: absolute; inset: 0; border-radius: 1px;
+  background: linear-gradient(90deg, var(--reg), var(--cpu));
+  transform: scaleX(0); transform-origin: left;
+  transition: transform 0.5s var(--ease-out-expo);
+}
+.reg-row.lit .rbits-fill { transform: scaleX(1); }
+.rv { font-size: 0.63rem; color: var(--td); text-align: right; }
+.reg-row.lit .rv { color: var(--t); }
+
+/* ── CONTEXT SWITCH ────────────────────────────────────────────────────────── */
+.ctx-wrap {
+  display: grid; grid-template-columns: 1fr 80px 1fr; gap: 1rem;
+  align-items: center; margin-top: 1.25rem;
+}
+.ctx-box {
+  border: 1px solid; padding: 1rem;
+  font-family: var(--mono); font-size: 0.68rem;
+}
+.ctx-box.a { border-color: rgba(61,158,255,0.35); background: var(--cpu-dim); }
+.ctx-box.b { border-color: rgba(0,255,170,0.35); background: var(--gpu-dim); }
+.ctx-label {
+  font-size: 0.65rem; font-weight: 600; letter-spacing: 0.1em;
+  text-transform: uppercase; margin-bottom: 0.6rem;
+}
+.ctx-box.a .ctx-label { color: var(--cpu); }
+.ctx-box.b .ctx-label { color: var(--gpu); }
+.ctx-reg-line { padding: 2px 0; color: var(--t); border-bottom: 1px solid var(--border); }
+.ctx-reg-line:last-child { border-bottom: none; }
+.ctx-reg-line.flash { animation: regFlash 0.4s ease forwards; }
+@keyframes regFlash {
+  0%   { background: transparent; color: var(--t); }
+  50%  { background: var(--amber-dim); color: var(--amber); }
+  100% { background: transparent; color: var(--t); }
+}
+.ctx-mid { text-align: center; }
+.ctx-mid svg { display: block; margin: 0 auto; }
+.ctx-ram {
+  font-family: var(--mono); font-size: 0.63rem;
+  border: 1px solid rgba(255,179,71,0.35);
+  background: var(--amber-dim); padding: 0.6rem; margin-top: 0.5rem;
+  border-radius: 1px;
+}
+.ctx-ram-label { color: var(--amber); font-weight: 600; font-size: 0.62rem; margin-bottom: 4px; }
+.ctx-ram-line { color: var(--td); }
+.primary-btn {
+  font-family: var(--mono); font-size: 0.72rem; font-weight: 500;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 0.5rem 1.25rem; border: 1px solid var(--cpu);
+  background: var(--cpu-dim); color: var(--cpu);
+  cursor: pointer; margin-top: 1.25rem;
+  transition: all 0.2s; display: inline-block;
+}
+.primary-btn:hover { background: var(--cpu); color: var(--bg); }
+.primary-btn.gpu-btn { border-color: var(--gpu); color: var(--gpu); background: var(--gpu-dim); }
+.primary-btn.gpu-btn:hover { background: var(--gpu); color: var(--bg); }
+
+/* ── MEMORY STACK ──────────────────────────────────────────────────────────── */
+.mstack { display: flex; flex-direction: column; gap: 4px; }
+.ml {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.65rem 1rem; border: 1px solid var(--border);
+  cursor: pointer; position: relative; overflow: hidden;
+  transition: border-color 0.2s, background 0.2s;
+}
+.ml::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+  width: 3px; transition: background 0.2s;
+}
+.ml:hover { background: rgba(255,255,255,0.025); border-color: var(--border2); }
+.ml-reg::before   { background: var(--reg); }
+.ml-l1::before    { background: var(--cpu); }
+.ml-l2::before    { background: rgba(61,158,255,0.6); }
+.ml-l3::before    { background: rgba(61,158,255,0.35); }
+.ml-dram::before  { background: var(--amber); }
+.ml-shmem::before { background: var(--gpu); }
+.ml-gl::before    { background: rgba(0,255,170,0.45); }
+.ml-name { font-family: var(--mono); font-size: 0.78rem; font-weight: 600; }
+.ml-reg .ml-name   { color: var(--reg); }
+.ml-l1 .ml-name    { color: var(--cpu); }
+.ml-l2 .ml-name    { color: rgba(61,158,255,0.75); }
+.ml-l3 .ml-name    { color: rgba(61,158,255,0.5); }
+.ml-dram .ml-name  { color: var(--amber); }
+.ml-shmem .ml-name { color: var(--gpu); }
+.ml-gl .ml-name    { color: rgba(0,255,170,0.6); }
+.ml-sub { font-family: var(--mono); font-size: 0.62rem; color: var(--td); margin-top: 1px; }
+.ml-right { text-align: right; }
+.ml-cyc { font-family: var(--mono); font-size: 0.78rem; font-weight: 600; }
+.ml-tech { font-family: var(--mono); font-size: 0.62rem; color: var(--td); margin-top: 1px; }
+.ml.active { background: rgba(255,255,255,0.04); }
+.ml-flash { animation: layerFlash 0.8s ease; }
+@keyframes layerFlash {
+  0%   { background: rgba(0,255,170,0.04); }
+  30%  { background: rgba(0,255,170,0.18); border-color: var(--gpu); }
+  100% { background: transparent; }
+}
+
+/* ── WARP STEPPER ──────────────────────────────────────────────────────────── */
+.warp-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+.warp-label { font-family: var(--mono); font-size: 0.68rem; color: var(--gpu); font-weight: 600; letter-spacing: 0.08em; }
+.warp-pc { font-family: var(--mono); font-size: 0.68rem; color: var(--td); }
+.warp-insn-display {
+  font-family: var(--mono); font-size: 0.82rem;
+  background: rgba(0,0,0,0.4); border: 1px solid var(--border);
+  padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; color: var(--gpu);
+  min-height: 2.2rem; display: flex; align-items: center;
+}
+.warp-insn-display .insn-addr { color: var(--td); margin-right: 0.75rem; font-size: 0.72rem; }
+.warp-grid-wrap {
+  border: 1px solid rgba(0,255,170,0.2);
+  background: rgba(0,0,0,0.3); padding: 0.75rem;
+}
+.warp-grid {
+  display: grid; grid-template-columns: repeat(8,1fr); gap: 3px;
+}
+.wt {
+  aspect-ratio: 1; border: 1px solid rgba(0,255,170,0.15);
+  background: rgba(0,255,170,0.04);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 0.55rem; color: rgba(0,255,170,0.4);
+  transition: all 0.12s; cursor: default;
+}
+.wt.fire { background: rgba(0,255,170,0.25); border-color: var(--gpu); color: var(--gpu); box-shadow: 0 0 8px rgba(0,255,170,0.3); }
+.wt.masked { background: rgba(255,107,107,0.08); border-color: rgba(255,107,107,0.25); color: rgba(255,107,107,0.5); }
+.wt.idle-off { background: rgba(0,255,170,0.01); border-color: rgba(0,255,170,0.08); color: rgba(0,255,170,0.2); }
+.warp-controls { display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap; }
+.wbtn {
+  font-family: var(--mono); font-size: 0.68rem; font-weight: 500;
+  padding: 0.3rem 0.75rem; border: 1px solid; cursor: pointer;
+  letter-spacing: 0.04em; transition: all 0.15s;
+}
+.wbtn.step   { border-color: var(--gpu); color: var(--gpu); background: var(--gpu-dim); }
+.wbtn.step:hover { background: var(--gpu); color: var(--bg); }
+.wbtn.div    { border-color: var(--reg); color: var(--reg); background: var(--reg-dim); }
+.wbtn.div:hover { background: var(--reg); color: var(--bg); }
+.wbtn.rst    { border-color: var(--border2); color: var(--td); background: transparent; }
+.wbtn.rst:hover { border-color: var(--t); color: var(--t); }
+.warp-info {
+  font-family: var(--mono); font-size: 0.68rem; color: var(--td);
+  margin-top: 0.6rem; padding: 0.4rem 0.6rem; background: rgba(0,0,0,0.3);
+  border-left: 2px solid var(--border2);
+}
+.warp-info.warn { border-color: var(--reg); color: rgba(255,107,107,0.8); }
+
+/* ── OCCUPANCY CALC ────────────────────────────────────────────────────────── */
+.occ-inputs { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1rem; }
+.occ-field { display: flex; align-items: center; gap: 0.75rem; }
+.occ-field label { font-family: var(--mono); font-size: 0.7rem; color: var(--td); width: 190px; flex-shrink: 0; }
+.occ-field input[type=range] { flex: 1; accent-color: var(--gpu); cursor: pointer; }
+.occ-field .oval { font-family: var(--mono); font-size: 0.78rem; color: var(--gpu); width: 36px; text-align: right; }
+.occ-metrics {
+  display: grid; grid-template-columns: repeat(4,1fr); gap: 1px;
+  background: var(--border); border: 1px solid var(--border); margin-bottom: 0.75rem;
+}
+.occ-m { background: var(--sf1); padding: 0.75rem; }
+.occ-m-k { font-family: var(--mono); font-size: 0.6rem; color: var(--td); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.25rem; }
+.occ-m-v { font-family: var(--mono); font-size: 1.1rem; font-weight: 600; }
+.c-good { color: var(--gpu); }
+.c-warn { color: var(--amber); }
+.c-bad  { color: var(--reg); }
+.occ-bar-wrap { height: 8px; background: rgba(255,255,255,0.06); border-radius: 1px; overflow: hidden; }
+.occ-bar-fill { height: 100%; background: linear-gradient(90deg, var(--gpu), var(--cpu)); transition: width 0.4s var(--ease-out-expo); border-radius: 1px; }
+.reg-partition { display: flex; flex-direction: column; gap: 2px; margin-top: 0.75rem; max-height: 100px; overflow: hidden; }
+.rp-row { height: 8px; border-radius: 1px; transition: width 0.4s var(--ease-out-expo); }
+
+/* ── COMPARE TABLE ─────────────────────────────────────────────────────────── */
+.cmp {
+  width: 100%; border-collapse: collapse;
+  font-family: var(--mono); font-size: 0.78rem;
+}
+.cmp th {
+  padding: 0.6rem 1rem; text-align: left;
+  font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--td); border-bottom: 1px solid var(--border2); font-weight: 500;
+}
+.cmp td { padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+.cmp tr:last-child td { border-bottom: none; }
+.cmp tr:hover td { background: rgba(255,255,255,0.015); }
+.cmp .prop { color: var(--td); font-size: 0.72rem; }
+.cmp .cpu-v { color: var(--cpu); font-weight: 500; }
+.cmp .gpu-v { color: var(--gpu); font-weight: 500; }
+.cmp .cat-row td { background: rgba(0,0,0,0.3); color: var(--tb); font-weight: 600; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.4rem 1rem; }
+
+/* ── TRACE ─────────────────────────────────────────────────────────────────── */
+.trace-wrap { display: grid; grid-template-columns: 1fr 300px; gap: 1.5rem; align-items: start; }
+@media(max-width:780px) { .trace-wrap { grid-template-columns: 1fr; } }
+.trace-btns { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+.tbtn {
+  font-family: var(--mono); font-size: 0.68rem; font-weight: 500;
+  padding: 0.35rem 0.9rem; border: 1px solid var(--border2);
+  color: var(--td); background: transparent; cursor: pointer;
+  letter-spacing: 0.04em; transition: all 0.15s;
+}
+.tbtn:hover { border-color: var(--gpu); color: var(--gpu); }
+.tbtn.active { border-color: var(--gpu); color: var(--gpu); background: var(--gpu-dim); }
+.trace-layers { display: flex; flex-direction: column; gap: 3px; }
+.tl {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.7rem 0.9rem; border: 1px solid var(--border);
+  position: relative; transition: all 0.3s;
+}
+.tl::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--border); transition: background 0.3s; }
+.tl.tl-hit { border-color: rgba(0,255,170,0.3); background: rgba(0,255,170,0.05); }
+.tl.tl-hit::before { background: var(--gpu); }
+.tl.tl-miss { border-color: rgba(255,107,107,0.2); }
+.tl.tl-miss::before { background: var(--reg); }
+.tl.tl-pending { border-color: rgba(255,179,71,0.3); }
+.tl.tl-pending::before { background: var(--amber); animation: blinkBorder 0.5s ease infinite; }
+@keyframes blinkBorder { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+.tl-conn { width: 1px; height: 16px; background: var(--border); margin-left: 3px; transition: background 0.3s; }
+.tl-conn.lit { background: var(--gpu); }
+.tl-left { display: flex; flex-direction: column; gap: 2px; }
+.tl-name { font-family: var(--mono); font-size: 0.8rem; font-weight: 600; color: var(--tb); }
+.tl-tech { font-family: var(--mono); font-size: 0.63rem; color: var(--td); }
+.tl-right { text-align: right; }
+.tl-cyc { font-family: var(--mono); font-size: 0.8rem; font-weight: 600; color: var(--td); }
+.tl.tl-hit .tl-cyc { color: var(--gpu); }
+.tl.tl-miss .tl-cyc { color: var(--reg); }
+.tl-badge {
+  font-family: var(--mono); font-size: 0.6rem; font-weight: 700;
+  letter-spacing: 0.06em; padding: 1px 5px; margin-top: 2px; display: inline-block;
+}
+.tl.tl-hit .tl-badge { background: var(--gpu-dim); color: var(--gpu); }
+.tl.tl-miss .tl-badge { background: var(--reg-dim); color: var(--reg); }
+.trace-sidebar { position: sticky; top: 72px; }
+.trace-log-box {
+  background: rgba(0,0,0,0.4); border: 1px solid var(--border);
+  padding: 0.75rem; font-family: var(--mono); font-size: 0.68rem;
+  max-height: 280px; overflow-y: auto; margin-bottom: 0.75rem;
+}
+.tlog { padding: 2px 0; border-bottom: 1px solid var(--border); }
+.tlog:last-child { border-bottom: none; }
+.tlog.info { color: var(--cpu); }
+.tlog.hit  { color: var(--gpu); }
+.tlog.miss { color: var(--reg); }
+.tlog.warn { color: var(--amber); }
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); border: 1px solid var(--border); }
+.stat-cell { background: var(--sf1); padding: 0.65rem; }
+.stat-cell .sk { font-family: var(--mono); font-size: 0.6rem; color: var(--td); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 2px; }
+.stat-cell .sv { font-family: var(--mono); font-size: 0.95rem; font-weight: 600; color: var(--tb); }
+
+/* ── INSIGHT CALLOUT ───────────────────────────────────────────────────────── */
+.callout {
+  display: flex; gap: 0.75rem; align-items: flex-start;
+  padding: 0.9rem 1rem; margin: 1rem 0;
+  border-left: 2px solid;
+}
+.callout.cpu-call { border-color: var(--cpu); background: var(--cpu-dim); }
+.callout.gpu-call { border-color: var(--gpu); background: var(--gpu-dim); }
+.callout.warn-call{ border-color: var(--amber); background: var(--amber-dim); }
+.callout.bad-call { border-color: var(--reg); background: var(--reg-dim); }
+.ci { font-size: 0.9rem; flex-shrink: 0; }
+.callout p { font-size: 0.84rem; color: var(--tb); margin: 0; }
+.callout strong { color: inherit; }
+
+/* ── CACHE LINE VIS ────────────────────────────────────────────────────────── */
+.cl-vis { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 0.75rem; }
+.cl-byte {
+  width: 11px; height: 11px; border-radius: 1px;
+  background: var(--border2); transition: background 0.1s;
+}
+.cl-byte.requested { background: var(--gpu); box-shadow: 0 0 6px var(--gpu); }
+.cl-byte.loaded { background: rgba(61,158,255,0.5); }
+
+/* ── REVEAL ────────────────────────────────────────────────────────────────── */
+.reveal { opacity: 0; transform: translateY(20px); transition: opacity 0.7s var(--ease-out-expo), transform 0.7s var(--ease-out-expo); }
+.reveal.vis { opacity: 1; transform: none; }
+.reveal-d1 { transition-delay: 0.1s; }
+.reveal-d2 { transition-delay: 0.2s; }
+.reveal-d3 { transition-delay: 0.3s; }
+
+/* ── FOOTER ────────────────────────────────────────────────────────────────── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 2rem 2.5rem; display: flex; align-items: center; justify-content: space-between;
+  font-family: var(--mono); font-size: 0.65rem; color: var(--td);
+}
+footer span { color: var(--cpu); }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-wordmark">Chronicles / <span>04</span> — Memory Deep-Dive</div>
+  <div class="nav-links">
+    <a href="#thread">Thread</a>
+    <a href="#cpu-sec">CPU</a>
+    <a href="#gpu-sec">GPU</a>
+    <a href="#compare">Compare</a>
+    <a href="#trace">Trace</a>
+  </div>
+  <div class="nav-status"><div class="nav-status-dot"></div> ARM64 · CUDA · Live</div>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <canvas id="bitCanvas"></canvas>
+  <div class="hero-grain"></div>
+  <div class="hero-vignette"></div>
+  <div class="hero-content">
+    <div class="hero-kicker">Architecture Deep-Dive</div>
+    <h1>The<br><em>Hierarchy</em><br>of <span class="g">Memory</span></h1>
+    <p class="hero-desc">From a D flip-flop in your register to a capacitor in DRAM — how threads, processes, warps and blocks connect to hardware at the bit level. CPU and GPU, side by side.</p>
+    <div class="hero-tags">
+      <div class="htag cpu">ARM64 · Apple Silicon</div>
+      <div class="htag gpu">CUDA · NEON</div>
+      <div class="htag n">Registers → L1 → L2 → L3 → DRAM</div>
+    </div>
+  </div>
+  <div class="scroll-ind">
+    <div class="scroll-track"></div>
+    Scroll
+  </div>
+</section>
+
+<!-- ═══ 01 THREAD ════════════════════════════════════════════════════════════ -->
+<section class="sec" id="thread">
+  <div class="sec-num">01</div>
+  <div class="container">
+
+    <div class="reveal">
+      <div class="sec-label both">Foundation</div>
+      <h2>A thread is just saved state</h2>
+      <p class="lead">Strip away the OS abstraction. A thread is three things: a program counter, a stack pointer, and a register file. When the scheduler pauses you, it saves those to RAM. When it resumes you, it loads them back. That's a context switch.</p>
+    </div>
+
+    <div class="g2" style="margin-top:2rem;">
+      <div class="card cpu-card reveal reveal-d1">
+        <h3>ARM64 Register File — your Mac's thread context</h3>
+        <p style="font-size:0.82rem;color:var(--td);margin-bottom:0.75rem;">Click any register to "activate" it. On context switch, all 31 are serialised to RAM.</p>
+        <div class="reg-panel" id="regPanel"></div>
+        <div class="callout cpu-call" style="margin-top:1rem;">
+          <span class="ci">📐</span>
+          <p>Full ARM64 thread context: 31×64-bit GPRs + 32×128-bit SIMD/FP + PC + PSTATE = <strong>≈ 4 KB</strong>. A context switch physically copies those 4 KB to a kernel data structure in RAM.</p>
+        </div>
+      </div>
+
+      <div class="card reveal reveal-d2" style="display:flex;flex-direction:column;gap:1rem;">
+        <div>
+          <h3>Context Switch — what the kernel does</h3>
+          <p style="font-size:0.83rem;">OS timer fires (every ~1 ms). Kernel saves Thread A's register file to its <code style="font-family:var(--mono);font-size:0.78rem;color:var(--amber);">task_struct</code> in RAM. Loads Thread B's register file. CPU resumes Thread B as if nothing happened.</p>
+          <div class="ctx-wrap">
+            <div class="ctx-box a">
+              <div class="ctx-label">Thread A — running</div>
+              <div id="ctxA">
+                <div class="ctx-reg-line">x0 = 0x7ffe3a81</div>
+                <div class="ctx-reg-line">x1 = 0x00000042</div>
+                <div class="ctx-reg-line">x2 = 0xdeadbeef</div>
+                <div class="ctx-reg-line">sp = 0x7fff0000</div>
+                <div class="ctx-reg-line">pc = 0x1000041c</div>
+              </div>
+            </div>
+            <div class="ctx-mid">
+              <svg width="24" height="60" viewBox="0 0 24 60">
+                <defs><marker id="arr" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3D5269"/></marker></defs>
+                <line x1="12" y1="0" x2="12" y2="55" stroke="#3D5269" stroke-width="1" marker-end="url(#arr)"/>
+              </svg>
+              <div class="ctx-ram">
+                <div class="ctx-ram-label">task_struct (RAM)</div>
+                <div class="ctx-ram-line" id="ctxRamContent">waiting…</div>
+              </div>
+              <svg width="24" height="40" viewBox="0 0 24 40" style="transform:scaleY(-1);">
+                <line x1="12" y1="0" x2="12" y2="35" stroke="#3D5269" stroke-width="1" marker-end="url(#arr)"/>
+              </svg>
+            </div>
+            <div class="ctx-box b">
+              <div class="ctx-label">Thread B — waiting</div>
+              <div id="ctxB">
+                <div class="ctx-reg-line">x0 = 0x00000000</div>
+                <div class="ctx-reg-line">x1 = 0x10040ab2</div>
+                <div class="ctx-reg-line">x2 = 0x00000001</div>
+                <div class="ctx-reg-line">sp = 0x7ffd0000</div>
+                <div class="ctx-reg-line">pc = 0x10000834</div>
+              </div>
+            </div>
+          </div>
+          <button class="primary-btn" id="ctxBtn">▶ Simulate Context Switch (~2000 cycles)</button>
+        </div>
+        <div class="callout bad-call">
+          <span class="ci">⚠</span>
+          <p>CPU context switches cost <strong>2,000–10,000+ cycles</strong> — register save/restore, TLB flush, cache cold-start. GPU warp switches cost <strong>exactly 0 cycles</strong>. That's the fundamental difference.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 02 CPU ════════════════════════════════════════════════════════════════ -->
+<section class="sec alt" id="cpu-sec">
+  <div class="sec-num">02</div>
+  <div class="container">
+
+    <div class="reveal">
+      <div class="sec-label cpu">CPU</div>
+      <h2>CPU Memory Hierarchy</h2>
+      <p class="lead">Every cache level exists because the level below is too slow. Each is a physically different technology — flip-flops, SRAM cells, or DRAM capacitors. Click any level to see it accessed.</p>
+    </div>
+
+    <div class="g2" style="margin-top:2rem;">
+      <div class="reveal reveal-d1">
+        <div class="mstack" id="cpuStack">
+          <div class="ml ml-reg" onclick="flashLayer(this)">
+            <div class="tl-left">
+              <div class="ml-name">Registers</div>
+              <div class="ml-sub">31×64-bit + 32×128-bit SIMD</div>
+            </div>
+            <div class="ml-right">
+              <div class="ml-cyc" style="color:var(--reg);">1 cycle</div>
+              <div class="ml-tech">D flip-flop · per thread</div>
+            </div>
+          </div>
+          <div class="ml ml-l1" onclick="flashLayer(this)">
+            <div class="tl-left">
+              <div class="ml-name">L1 Cache</div>
+              <div class="ml-sub">64 KB · 64-byte cache lines</div>
+            </div>
+            <div class="ml-right">
+              <div class="ml-cyc" style="color:var(--cpu);">4–5 cycles</div>
+              <div class="ml-tech">SRAM · per core</div>
+            </div>
+          </div>
+          <div class="ml ml-l2" onclick="flashLayer(this)">
+            <div class="tl-left">
+              <div class="ml-name">L2 Cache</div>
+              <div class="ml-sub">4–16 MB · unified on M-series</div>
+            </div>
+            <div class="ml-right">
+              <div class="ml-cyc" style="color:rgba(61,158,255,.7);">12–20 cycles</div>
+              <div class="ml-tech">SRAM · per cluster</div>
+            </div>
+          </div>
+          <div class="ml ml-l3" onclick="flashLayer(this)">
+            <div class="tl-left">
+              <div class="ml-name">L3 / SLC</div>
+              <div class="ml-sub">16–32 MB · System Level Cache</div>
+            </div>
+            <div class="ml-right">
+              <div class="ml-cyc" style="color:rgba(61,158,255,.45);">40–60 cycles</div>
+              <div class="ml-tech">SRAM · chip-wide</div>
+            </div>
+          </div>
+          <div class="ml ml-dram" onclick="flashLayer(this)">
+            <div class="tl-left">
+              <div class="ml-name">LPDDR5 / RAM</div>
+              <div class="ml-sub">8–192 GB · unified with GPU on Apple</div>
+            </div>
+            <div class="ml-right">
+              <div class="ml-cyc" style="color:var(--amber);">200–300 cycles</div>
+              <div class="ml-tech">DRAM capacitors · off-chip</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:1.25rem;">
+        <div class="card reveal reveal-d1">
+          <h3>What a "bit" physically is</h3>
+          <div class="g3" style="margin-top:0.75rem;gap:0.75rem;">
+            <div style="border:1px solid var(--border);padding:0.75rem;text-align:center;">
+              <div style="font-size:1.5rem;margin-bottom:0.4rem;">🔁</div>
+              <div style="font-family:var(--mono);font-size:0.7rem;color:var(--reg);font-weight:600;margin-bottom:0.3rem;">Register</div>
+              <div style="font-size:0.75rem;color:var(--td);">D flip-flop. Two cross-coupled NAND gates. Holds state as long as power flows. 1-cycle access.</div>
+            </div>
+            <div style="border:1px solid var(--border);padding:0.75rem;text-align:center;">
+              <div style="font-size:1.5rem;margin-bottom:0.4rem;">🔷</div>
+              <div style="font-family:var(--mono);font-size:0.7rem;color:var(--cpu);font-weight:600;margin-bottom:0.3rem;">SRAM (Cache)</div>
+              <div style="font-size:0.75rem;color:var(--td);">6 transistors per bit. No refresh needed. Fast but expensive — only used for caches.</div>
+            </div>
+            <div style="border:1px solid var(--border);padding:0.75rem;text-align:center;">
+              <div style="font-size:1.5rem;margin-bottom:0.4rem;">⚡</div>
+              <div style="font-family:var(--mono);font-size:0.7rem;color:var(--amber);font-weight:600;margin-bottom:0.3rem;">DRAM</div>
+              <div style="font-size:0.75rem;color:var(--td);">1 capacitor + 1 transistor. Charge leaks — needs refresh every 64 ms. Cheap and dense.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card reveal reveal-d2">
+          <h3>Cache line = 64 bytes = 512 bits</h3>
+          <p style="font-size:0.82rem;color:var(--td);">Memory never moves one byte at a time. Every access loads a full 64-byte line. Access <code style="font-family:var(--mono);color:var(--cpu);">arr[0]</code> and you get <code style="font-family:var(--mono);color:var(--cpu);">arr[0..15]</code> for free.</p>
+          <div class="cl-vis" id="clVis"></div>
+          <p style="font-size:0.72rem;color:var(--td);margin-top:0.5rem;margin-bottom:0;font-family:var(--mono);">← 64 bytes. Green = requested. Blue = loaded for free.</p>
+        </div>
+
+        <div class="card reveal reveal-d3">
+          <h3>Virtual → Physical (TLB)</h3>
+          <p style="font-size:0.83rem;">Your pointer is a <em>virtual</em> address. The MMU translates it to physical RAM via page tables. The TLB caches recent translations — a TLB miss adds 100+ cycles on top of whatever memory latency you were already paying.</p>
+          <div style="font-family:var(--mono);font-size:0.72rem;background:rgba(0,0,0,0.4);border:1px solid var(--border);padding:0.75rem;margin-top:0.5rem;line-height:2;">
+            <span style="color:var(--td);">// pointer in your code (virtual):</span><br>
+            <span style="color:var(--cpu);">int</span><span style="color:var(--t);">* p</span> <span style="color:var(--td);">→</span> <span style="color:var(--amber);">0x7ffe3a80</span><br>
+            <span style="color:var(--td);">// TLB translates to physical:</span><br>
+            <span style="color:var(--amber);">0x7ffe3a80</span> <span style="color:var(--td);">→</span> <span style="color:var(--gpu);">0x3c0a1a80</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 03 GPU ════════════════════════════════════════════════════════════════ -->
+<section class="sec" id="gpu-sec">
+  <div class="sec-num">03</div>
+  <div class="container">
+
+    <div class="reveal">
+      <div class="sec-label gpu">GPU</div>
+      <h2>GPU Memory Hierarchy</h2>
+      <p class="lead">The GPU hides latency not through prediction or caching tricks, but through sheer numbers. When one warp stalls on a memory load, the scheduler instantly picks another. No registers are saved. No cycles wasted. The register file is always there.</p>
+    </div>
+
+    <div class="g2" style="margin-top:2rem;">
+      <!-- Warp stepper -->
+      <div class="card gpu-card reveal reveal-d1">
+        <div class="warp-header">
+          <div class="warp-label">SM — Warp Execution</div>
+          <div class="warp-pc" id="warpPc">PC: 0x00000000 · Cycle: 0</div>
+        </div>
+        <div class="warp-insn-display" id="warpInsn">
+          <span class="insn-addr">—</span><span>idle — press Step to execute</span>
+        </div>
+        <div style="font-family:var(--mono);font-size:0.65rem;color:var(--td);margin-bottom:0.4rem;">32 threads · 1 instruction · 32 data streams simultaneously:</div>
+        <div class="warp-grid-wrap">
+          <div class="warp-grid" id="warpGrid"></div>
+        </div>
+        <div class="warp-info" id="warpInfo">All 32 threads execute the same instruction in lockstep. Each has its own register slice.</div>
+        <div class="warp-controls">
+          <button class="wbtn step" onclick="warpStep()">▶ Step</button>
+          <button class="wbtn div"  onclick="warpDiverge()">⚡ Branch Diverge</button>
+          <button class="wbtn rst"  onclick="warpReset()">↺ Reset</button>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:1.25rem;">
+        <!-- GPU memory stack -->
+        <div class="reveal reveal-d1">
+          <div class="mstack">
+            <div class="ml ml-reg" onclick="flashLayer(this)">
+              <div class="tl-left"><div class="ml-name">Registers / SM</div><div class="ml-sub">65,536 × 32-bit = 256 KB</div></div>
+              <div class="ml-right"><div class="ml-cyc" style="color:var(--reg);">1 cycle</div><div class="ml-tech">SRAM · per-thread slice</div></div>
+            </div>
+            <div class="ml ml-shmem" onclick="flashLayer(this)">
+              <div class="tl-left"><div class="ml-name">Shared Memory</div><div class="ml-sub">48–164 KB / SM · explicit</div></div>
+              <div class="ml-right"><div class="ml-cyc" style="color:var(--gpu);">~5 cycles</div><div class="ml-tech">SRAM · per block · you manage it</div></div>
+            </div>
+            <div class="ml ml-l2" onclick="flashLayer(this)">
+              <div class="tl-left"><div class="ml-name">L2 Cache</div><div class="ml-sub">40 MB (A100) · chip-wide</div></div>
+              <div class="ml-right"><div class="ml-cyc" style="color:rgba(61,158,255,.6);">~200 cycles</div><div class="ml-tech">SRAM · all SMs share</div></div>
+            </div>
+            <div class="ml ml-dram" onclick="flashLayer(this)">
+              <div class="tl-left"><div class="ml-name">HBM Global Memory</div><div class="ml-sub">80 GB · 3.35 TB/s (H100)</div></div>
+              <div class="ml-right"><div class="ml-cyc" style="color:var(--amber);">~600 cycles</div><div class="ml-tech">HBM3 stacked DRAM</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Occupancy calc -->
+        <div class="card reveal reveal-d2">
+          <h3>Register Occupancy Calculator</h3>
+          <p style="font-size:0.8rem;color:var(--td);margin-bottom:0.75rem;">SM has 65,536 registers. More regs/thread = fewer threads = lower occupancy = less latency hiding.</p>
+          <div class="occ-inputs">
+            <div class="occ-field">
+              <label>Threads / block</label>
+              <input type="range" id="occT" min="32" max="1024" step="32" value="256" oninput="calcOcc()">
+              <span class="oval" id="occTv">256</span>
+            </div>
+            <div class="occ-field">
+              <label>Registers / thread</label>
+              <input type="range" id="occR" min="16" max="255" step="1" value="32" oninput="calcOcc()">
+              <span class="oval" id="occRv">32</span>
+            </div>
+          </div>
+          <div class="occ-metrics" id="occMetrics"></div>
+          <div class="occ-bar-wrap"><div class="occ-bar-fill" id="occBar"></div></div>
+          <div class="reg-partition" id="regPartition"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout gpu-call" style="margin-top:1.5rem;">
+      <span class="ci">⚡</span>
+      <p>Unlike a CPU which saves/restores registers on context switch, a GPU SM keeps ALL active warp registers in its 256 KB register file <strong>simultaneously and permanently</strong>. Warp switching is free because no data moves — the scheduler just picks a different slice of the register file.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 04 COMPARE ═══════════════════════════════════════════════════════════ -->
+<section class="sec alt" id="compare">
+  <div class="sec-num">04</div>
+  <div class="container">
+
+    <div class="reveal">
+      <div class="sec-label both">Comparison</div>
+      <h2>CPU vs GPU — every dimension</h2>
+    </div>
+
+    <div class="card reveal" style="margin-top:1.5rem;padding:0;overflow:hidden;">
+      <table class="cmp">
+        <thead>
+          <tr>
+            <th style="width:30%;">Property</th>
+            <th style="color:var(--cpu);">CPU · Apple M3 Pro</th>
+            <th style="color:var(--gpu);">GPU · NVIDIA H100</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="cat-row"><td colspan="3">Compute</td></tr>
+          <tr><td class="prop">Cores</td><td class="cpu-v">12 P-cores + 4 E-cores</td><td class="gpu-v">132 SMs × 128 CUDA cores</td></tr>
+          <tr><td class="prop">Threads in flight</td><td class="cpu-v">~32 (hyperthreading)</td><td class="gpu-v">~200,000+</td></tr>
+          <tr><td class="prop">Peak FP32</td><td class="cpu-v">~3.6 TFLOP/s</td><td class="gpu-v">~67 TFLOP/s</td></tr>
+          <tr><td class="prop">Clock speed</td><td class="cpu-v">4.05 GHz</td><td class="gpu-v">1.98 GHz</td></tr>
+
+          <tr class="cat-row"><td colspan="3">Register File</td></tr>
+          <tr><td class="prop">Register file size</td><td class="cpu-v">~4 KB per thread context</td><td class="gpu-v">256 KB per SM (permanent)</td></tr>
+          <tr><td class="prop">Register width</td><td class="cpu-v">64-bit GPR / 128-bit SIMD</td><td class="gpu-v">32-bit per lane</td></tr>
+          <tr><td class="prop">Context switch cost</td>
+            <td style="color:var(--reg);font-family:var(--mono);font-weight:500;">2,000–10,000 cycles</td>
+            <td style="color:var(--gpu);font-family:var(--mono);font-weight:500;">0 cycles</td>
+          </tr>
+
+          <tr class="cat-row"><td colspan="3">Cache</td></tr>
+          <tr><td class="prop">L1 / fast mem</td><td class="cpu-v">64 KB (auto)</td><td class="gpu-v">48–164 KB shared mem (manual)</td></tr>
+          <tr><td class="prop">L2 total</td><td class="cpu-v">16 MB</td><td class="gpu-v">50 MB</td></tr>
+          <tr><td class="prop">Cache management</td><td class="cpu-v">Automatic (hardware)</td><td class="gpu-v">Shared memory = programmer's job</td></tr>
+
+          <tr class="cat-row"><td colspan="3">Memory</td></tr>
+          <tr><td class="prop">Technology</td><td class="cpu-v">LPDDR5X unified</td><td class="gpu-v">HBM3 stacked DRAM</td></tr>
+          <tr><td class="prop">Bandwidth</td><td class="cpu-v">~120 GB/s</td><td class="gpu-v">~3,350 GB/s</td></tr>
+          <tr><td class="prop">Latency</td><td class="cpu-v">~80 ns</td><td class="gpu-v">~400–600 ns (hidden by warps)</td></tr>
+
+          <tr class="cat-row"><td colspan="3">Latency Hiding Strategy</td></tr>
+          <tr><td class="prop">Method</td>
+            <td class="cpu-v">Out-of-order execution, branch prediction, prefetch, large caches</td>
+            <td class="gpu-v">Warp switching — run other warps while one waits for memory</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="g3" style="margin-top:1.5rem;">
+      <div class="card cpu-card reveal reveal-d1">
+        <h3 style="color:var(--cpu);">Use CPU when</h3>
+        <ul style="font-family:var(--mono);font-size:0.75rem;margin-left:1rem;display:flex;flex-direction:column;gap:0.4rem;margin-top:0.5rem;color:var(--t);">
+          <li>Complex branching logic</li><li>Low-latency single requests</li>
+          <li>Serial dependencies</li><li>OS / I/O / syscalls</li>
+          <li>Small data (fits in L1)</li><li>Tokenizer, scheduler, TTS post-proc</li>
+        </ul>
+      </div>
+      <div class="card gpu-card reveal reveal-d2">
+        <h3 style="color:var(--gpu);">Use GPU when</h3>
+        <ul style="font-family:var(--mono);font-size:0.75rem;margin-left:1rem;display:flex;flex-direction:column;gap:0.4rem;margin-top:0.5rem;color:var(--t);">
+          <li>Same op on millions of values</li><li>Matrix multiply (attention, conv)</li>
+          <li>No cross-thread dependency</li><li>High arithmetic intensity</li>
+          <li>Need > 500 GB/s bandwidth</li><li>Training & batch inference</li>
+        </ul>
+      </div>
+      <div class="card reveal reveal-d3" style="border-color:rgba(167,139,250,0.25);">
+        <h3 style="color:var(--violet);">On-device AI split</h3>
+        <ul style="font-family:var(--mono);font-size:0.75rem;margin-left:1rem;display:flex;flex-direction:column;gap:0.4rem;margin-top:0.5rem;color:var(--t);">
+          <li><span style="color:var(--cpu)">CPU</span> · tokenize, sample, decode</li>
+          <li><span style="color:var(--gpu)">GPU</span> · attention GEMM layers</li>
+          <li><span style="color:var(--cpu)">CPU</span> · voice / TTS post-proc</li>
+          <li><span style="color:var(--gpu)">GPU</span> · embeddings, FFN, conv</li>
+          <li><span style="color:var(--violet)">Unified mem</span> · Apple shares DRAM</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 05 TRACE ══════════════════════════════════════════════════════════════ -->
+<section class="sec" id="trace">
+  <div class="sec-num">05</div>
+  <div class="container">
+
+    <div class="reveal">
+      <div class="sec-label both">Interactive</div>
+      <h2>Trace a memory access</h2>
+      <p class="lead">Choose a scenario. Watch the access travel through the hierarchy, see where it lands, and find out exactly how many cycles the CPU stalls.</p>
+    </div>
+
+    <div class="trace-btns reveal">
+      <button class="tbtn" onclick="runTrace('l1')">L1 Hit — hot loop</button>
+      <button class="tbtn" onclick="runTrace('l2')">L2 Hit — warm buffer</button>
+      <button class="tbtn" onclick="runTrace('l3')">L3 Hit — large array</button>
+      <button class="tbtn" onclick="runTrace('dram')">DRAM Miss — cold data</button>
+      <button class="tbtn" onclick="runTrace('tlb')">TLB Miss + DRAM — worst case</button>
+    </div>
+
+    <div class="trace-wrap reveal">
+      <div>
+        <div class="trace-layers" id="traceLayers">
+          <div class="tl" id="tl-l1">
+            <div class="tl-left"><div class="tl-name">L1 Cache</div><div class="tl-tech">SRAM · 64 KB · 64-byte lines · per-core</div></div>
+            <div class="tl-right"><div class="tl-cyc">4–5 cycles</div><div class="tl-badge" id="tb-l1"></div></div>
+          </div>
+          <div class="tl-conn" id="tc-0"></div>
+          <div class="tl" id="tl-l2">
+            <div class="tl-left"><div class="tl-name">L2 Cache</div><div class="tl-tech">SRAM · 4–16 MB · per-cluster</div></div>
+            <div class="tl-right"><div class="tl-cyc">12–20 cycles</div><div class="tl-badge" id="tb-l2"></div></div>
+          </div>
+          <div class="tl-conn" id="tc-1"></div>
+          <div class="tl" id="tl-l3">
+            <div class="tl-left"><div class="tl-name">L3 / System Level Cache</div><div class="tl-tech">SRAM · 16–32 MB · chip-wide</div></div>
+            <div class="tl-right"><div class="tl-cyc">40–60 cycles</div><div class="tl-badge" id="tb-l3"></div></div>
+          </div>
+          <div class="tl-conn" id="tc-2"></div>
+          <div class="tl" id="tl-dram">
+            <div class="tl-left"><div class="tl-name">LPDDR5 / HBM (DRAM)</div><div class="tl-tech">DRAM · GBs · off-chip · ~80 ns</div></div>
+            <div class="tl-right"><div class="tl-cyc">200–600 cycles</div><div class="tl-badge" id="tb-dram"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="trace-sidebar">
+        <h3 style="margin-bottom:0.6rem;font-size:0.85rem;">Access Log</h3>
+        <div class="trace-log-box" id="traceLog"><div class="tlog info">— select a scenario above</div></div>
+        <div class="stats-grid" id="statsGrid">
+          <div class="stat-cell"><div class="sk">Cycles stalled</div><div class="sv" id="stCyc">—</div></div>
+          <div class="stat-cell"><div class="sk">Time @ 4 GHz</div><div class="sv" id="stNs">—</div></div>
+          <div class="stat-cell"><div class="sk">Bytes loaded</div><div class="sv" id="stBytes">—</div></div>
+          <div class="stat-cell"><div class="sk">Effective BW</div><div class="sv" id="stBw">—</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div>Chronicles · <span>04 — Memory Deep-Dive</span> · CPU + GPU from bits up</div>
+  <div>Built with raw HTML · IBM Plex Mono · Syne</div>
+</footer>
+
+<!-- ═══════════════════════════════ SCRIPTS ═══════════════════════════════════ -->
+<script>
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ── BIT RAIN ─────────────────────────────────────────────────────────────── */
+const canvas = document.getElementById('bitCanvas');
+const ctx2 = canvas.getContext('2d');
+let cols, drops;
+function initRain() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  cols = Math.floor(canvas.width / 22);
+  drops = Array.from({length: cols}, () => ({
+    y: Math.random() * -canvas.height,
+    speed: 40 + Math.random() * 70,
+    bright: Math.random() < 0.15
+  }));
+}
+function drawRain() {
+  ctx2.fillStyle = 'rgba(7,9,15,0.07)';
+  ctx2.fillRect(0, 0, canvas.width, canvas.height);
+  drops.forEach((d, i) => {
+    const x = i * 22 + 11;
+    for (let j = 0; j < 10; j++) {
+      const a = Math.max(0, (1 - j / 10) * (d.bright ? 0.8 : 0.35));
+      const bit = Math.random() < 0.5 ? '0' : '1';
+      if (j === 0 && d.bright) {
+        ctx2.fillStyle = `rgba(0,255,170,${a})`;
+      } else if (j === 0) {
+        ctx2.fillStyle = `rgba(61,158,255,${a})`;
+      } else {
+        ctx2.fillStyle = `rgba(61,158,255,${a * 0.5})`;
+      }
+      ctx2.font = '11px "IBM Plex Mono", monospace';
+      ctx2.fillText(bit, x, d.y - j * 16);
+    }
+    d.y += d.speed / 60;
+    if (d.y > canvas.height + 120) d.y = -120;
+  });
+}
+initRain();
+window.addEventListener('resize', initRain);
+setInterval(drawRain, 1000 / 30);
+
+/* ── REGISTER PANEL ──────────────────────────────────────────────────────── */
+const armRegs = [
+  ['x0','0x7ffe3a81'],['x1','0x00000042'],['x2','0xdeadbeef'],['x3','0x10040000'],
+  ['x4','0x00000001'],['x5','0x7ffe0020'],['x6','0x00000000'],['x7','0x10000834'],
+  ['x8','0x1234abcd'],['x9','0x00ff00ff'],['x16','0xbabe0001'],['x17','0x00000198'],
+  ['x29','0x7fff0010'],['x30','0x100041f0'],['sp','0x7fffffff'],['pc','0x1000041c'],
+];
+const panel = document.getElementById('regPanel');
+armRegs.forEach(([name, val]) => {
+  const row = document.createElement('div');
+  row.className = 'reg-row';
+  row.innerHTML = `<span class="rn">${name}</span><div class="rbits"><div class="rbits-fill"></div></div><span class="rv">${val}</span>`;
+  row.onclick = () => row.classList.toggle('lit');
+  panel.appendChild(row);
+});
+setTimeout(() => {
+  [...panel.querySelectorAll('.reg-row')].slice(0, 6).forEach(r => r.classList.add('lit'));
+}, 600);
+
+/* ── CONTEXT SWITCH ──────────────────────────────────────────────────────── */
+let ctxBusy = false;
+document.getElementById('ctxBtn').onclick = async function() {
+  if (ctxBusy) return;
+  ctxBusy = true;
+  const btn = this;
+  const linesA = document.querySelectorAll('#ctxA .ctx-reg-line');
+  const linesB = document.querySelectorAll('#ctxB .ctx-reg-line');
+  const ram = document.getElementById('ctxRamContent');
+
+  btn.textContent = 'Saving Thread A to RAM…';
+  for (const l of linesA) { l.classList.add('flash'); await sleep(100); }
+  await sleep(200);
+  ram.innerHTML = [...linesA].map(l => `<div class="ctx-ram-line">${l.textContent}</div>`).join('');
+
+  await sleep(300);
+  btn.textContent = 'Restoring Thread B…';
+  for (const l of linesB) { l.classList.add('flash'); await sleep(100); }
+  await sleep(400);
+
+  linesA.forEach(l => l.classList.remove('flash'));
+  linesB.forEach(l => l.classList.remove('flash'));
+  ram.innerHTML = '<div class="ctx-ram-line" style="color:var(--gpu);">Thread B now running.</div>';
+  btn.textContent = '▶ Simulate Context Switch (~2000 cycles)';
+  ctxBusy = false;
+};
+
+/* ── LAYER FLASH ─────────────────────────────────────────────────────────── */
+function flashLayer(el) {
+  el.classList.add('ml-flash');
+  setTimeout(() => el.classList.remove('ml-flash'), 800);
+}
+
+/* ── CACHE LINE VIS ──────────────────────────────────────────────────────── */
+const clVis = document.getElementById('clVis');
+for (let i = 0; i < 64; i++) {
+  const b = document.createElement('div');
+  b.className = 'cl-byte' + (i === 0 ? ' requested' : '');
+  clVis.appendChild(b);
+}
+setInterval(() => {
+  const bytes = clVis.querySelectorAll('.cl-byte');
+  bytes.forEach(b => { b.className = 'cl-byte'; });
+  bytes[0].className = 'cl-byte requested';
+  let i = 0;
+  const wave = setInterval(() => {
+    if (i < 64) { bytes[i].classList.add('loaded'); i++; }
+    else {
+      clearInterval(wave);
+      setTimeout(() => {
+        bytes.forEach(b => { b.className = 'cl-byte'; });
+        bytes[0].className = 'cl-byte requested';
+      }, 1200);
+    }
+  }, 25);
+}, 5000);
+
+/* ── WARP STEPPER ────────────────────────────────────────────────────────── */
+const insns = [
+  {addr:'0x00400100', op:'LDR   x0, [x1]',      desc:'Load from global memory — may stall up to 600 cycles'},
+  {addr:'0x00400104', op:'FMLA  v0.4s,v1.4s,v2.4s', desc:'Fused multiply-add on 4 floats — 1 cycle when data is ready'},
+  {addr:'0x00400108', op:'ADD   x3, x0, #1',     desc:'Integer add — 1 cycle, fully pipelined'},
+  {addr:'0x0040010c', op:'STR   x3, [x1, #4]',   desc:'Store result back to global memory'},
+  {addr:'0x00400110', op:'CMP   x3, #1024',       desc:'Compare with loop bound'},
+  {addr:'0x00400114', op:'B.LT  loop',            desc:'Branch if less than — warp takes same path: no divergence'},
+  {addr:'0x00400118', op:'RET',                   desc:'Return from kernel'},
+];
+let warpCycle = 0, warpDiv = false, maskedSet = new Set();
+const warpGrid = document.getElementById('warpGrid');
+for (let i = 0; i < 32; i++) {
+  const t = document.createElement('div');
+  t.className = 'wt'; t.id = `wt${i}`; t.textContent = i;
+  warpGrid.appendChild(t);
+}
+function renderWarp() {
+  for (let i = 0; i < 32; i++) {
+    const el = document.getElementById(`wt${i}`);
+    if (maskedSet.has(i)) { el.className = 'wt masked'; continue; }
+    el.className = warpCycle > 0 ? 'wt fire' : 'wt';
+    if (warpCycle > 0) setTimeout(() => { if (el.className === 'wt fire') el.className = 'wt idle-off'; }, 250);
+  }
+}
+function warpStep() {
+  warpCycle++;
+  const insn = insns[warpCycle % insns.length];
+  document.getElementById('warpPc').textContent = `PC: ${insn.addr} · Cycle: ${warpCycle}`;
+  document.getElementById('warpInsn').innerHTML = `<span class="insn-addr">${insn.addr}</span><span>${insn.op}</span>`;
+  const info = document.getElementById('warpInfo');
+  info.textContent = insn.desc;
+  info.className = 'warp-info';
+  renderWarp();
+}
+function warpDiverge() {
+  warpDiv = true;
+  for (let i = 16; i < 32; i++) maskedSet.add(i);
+  document.getElementById('warpInsn').innerHTML = `<span class="insn-addr">0x00400120</span><span>if (threadIdx.x &lt; 16) { doA(); } else { doB(); }</span>`;
+  const info = document.getElementById('warpInfo');
+  info.textContent = '⚠ Branch diverged: threads 0–15 run doA(), threads 16–31 masked (then reversed). Both paths run serially. 50% efficiency.';
+  info.className = 'warp-info warn';
+  renderWarp();
+}
+function warpReset() {
+  warpCycle = 0; warpDiv = false; maskedSet.clear();
+  document.getElementById('warpPc').textContent = 'PC: 0x00000000 · Cycle: 0';
+  document.getElementById('warpInsn').innerHTML = '<span class="insn-addr">—</span><span>idle — press Step to execute</span>';
+  document.getElementById('warpInfo').textContent = 'All 32 threads execute the same instruction in lockstep. Each has its own register slice.';
+  document.getElementById('warpInfo').className = 'warp-info';
+  for (let i = 0; i < 32; i++) document.getElementById(`wt${i}`).className = 'wt';
+}
+
+/* ── OCCUPANCY CALC ──────────────────────────────────────────────────────── */
+const rpColors = ['rgba(61,158,255,0.55)','rgba(0,255,170,0.45)','rgba(167,139,250,0.45)','rgba(255,179,71,0.4)'];
+function calcOcc() {
+  const T = +document.getElementById('occT').value;
+  const R = +document.getElementById('occR').value;
+  document.getElementById('occTv').textContent = T;
+  document.getElementById('occRv').textContent = R;
+  const maxRegs = 65536, maxT = 2048, maxWarps = 64;
+  const tByRegs = Math.floor(maxRegs / R / 32) * 32;
+  const activeT = Math.min(T, tByRegs, maxT);
+  const occ = Math.round(activeT / maxT * 100);
+  const warps = Math.floor(activeT / 32);
+  const spill = T * R > maxRegs;
+  const cls = occ >= 67 ? 'c-good' : occ >= 33 ? 'c-warn' : 'c-bad';
+  document.getElementById('occMetrics').innerHTML = `
+    <div class="occ-m"><div class="occ-m-k">Occupancy</div><div class="occ-m-v ${cls}">${occ}%</div></div>
+    <div class="occ-m"><div class="occ-m-k">Active warps</div><div class="occ-m-v" style="color:var(--cpu);">${warps} / ${maxWarps}</div></div>
+    <div class="occ-m"><div class="occ-m-k">Regs used</div><div class="occ-m-v" style="color:${spill?'var(--reg)':'var(--t)'}">${(T*R).toLocaleString()}</div></div>
+    <div class="occ-m"><div class="occ-m-k">Spill?</div><div class="occ-m-v" style="color:${spill?'var(--reg)':'var(--gpu)'};">${spill?'YES':'No'}</div></div>`;
+  document.getElementById('occBar').style.width = occ + '%';
+  const rp = document.getElementById('regPartition');
+  rp.innerHTML = '';
+  for (let i = 0; i < Math.min(activeT, 48); i++) {
+    const row = document.createElement('div');
+    row.className = 'rp-row';
+    row.style.width = (R / 255 * 100) + '%';
+    row.style.background = rpColors[Math.floor(i / 8) % 4];
+    rp.appendChild(row);
+  }
+}
+calcOcc();
+
+/* ── MEMORY TRACE ────────────────────────────────────────────────────────── */
+const traceScenarios = {
+  l1:   { hits: ['l1'],                  cyc: 5,   ns:'1.25 ns', bytes:'64 B', bw:'300 GB/s' },
+  l2:   { hits: ['l2'],  misses: ['l1'], cyc: 20,  ns:'5 ns',    bytes:'64 B', bw:'100 GB/s' },
+  l3:   { hits: ['l3'],  misses: ['l1','l2'], cyc: 60,  ns:'15 ns',   bytes:'64 B', bw:'60 GB/s'  },
+  dram: { hits: ['dram'],misses: ['l1','l2','l3'], cyc: 280, ns:'70 ns',   bytes:'64 B', bw:'60 GB/s'  },
+  tlb:  { hits: ['dram'],misses: ['l1','l2','l3'], cyc: 600, ns:'150 ns',  bytes:'64 B', bw:'30 GB/s', tlb: true },
+};
+const traceMsgs = {
+  l1:   ['L1 hit — data found in 4 cycles'],
+  l2:   ['L1 miss','L2 hit — line promoted to L1'],
+  l3:   ['L1 miss','L2 miss','L3 hit — line promoted L3→L2→L1'],
+  dram: ['L1 miss','L2 miss','L3 miss','DRAM access — waiting ~70 ns for data','Line filled into L3→L2→L1→register'],
+  tlb:  ['L1 miss','L2 miss','L3 miss','TLB miss — walking page table (4 levels)','Page table entry found','DRAM access — physical address resolved','Line loaded after full page walk + DRAM'],
+};
+let tracing = false;
+const lvls = ['l1','l2','l3','dram'];
+async function runTrace(id) {
+  if (tracing) return;
+  tracing = true;
+  document.querySelectorAll('.tbtn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.tbtn[onclick="runTrace('${id}')"]`).classList.add('active');
+  const s = traceScenarios[id];
+  const msgs = traceMsgs[id];
+  const log = document.getElementById('traceLog');
+  log.innerHTML = '';
+
+  // reset layers
+  lvls.forEach(l => {
+    const el = document.getElementById(`tl-${l}`);
+    el.className = 'tl';
+    document.getElementById(`tb-${l}`).textContent = '';
+  });
+  for (let i = 0; i < 3; i++) {
+    const c = document.getElementById(`tc-${i}`);
+    if (c) c.classList.remove('lit');
+  }
+
+  const addLog = (txt, cls) => {
+    const d = document.createElement('div');
+    d.className = `tlog ${cls}`; d.textContent = txt;
+    log.appendChild(d); log.scrollTop = log.scrollHeight;
+  };
+
+  if (s.tlb) addLog('→ TLB miss: page table walk begins', 'warn');
+  addLog(`→ Scenario: ${id.toUpperCase()} access`, 'info');
+
+  for (let i = 0; i < lvls.length; i++) {
+    const lv = lvls[i];
+    const isHit  = s.hits?.includes(lv);
+    const isMiss = s.misses?.includes(lv);
+
+    if (!isHit && !isMiss) break;
+
+    if (i > 0) {
+      const c = document.getElementById(`tc-${i-1}`);
+      if (c) { c.classList.add('lit'); await sleep(200); }
+    }
+
+    const el = document.getElementById(`tl-${lv}`);
+    const badge = document.getElementById(`tb-${lv}`);
+    el.className = `tl tl-pending`;
+
+    if (isMiss) {
+      await sleep(300);
+      el.className = 'tl tl-miss';
+      badge.textContent = 'MISS';
+      addLog(msgs[i] || `${lv.toUpperCase()} miss`, 'miss');
+    }
+    if (isHit) {
+      await sleep(400);
+      el.className = 'tl tl-hit';
+      badge.textContent = 'HIT';
+      addLog(msgs[msgs.length - 1], 'hit');
+      break;
+    }
+    await sleep(100);
+  }
+
+  document.getElementById('stCyc').textContent  = s.cyc;
+  document.getElementById('stNs').textContent   = s.ns;
+  document.getElementById('stBytes').textContent = s.bytes;
+  document.getElementById('stBw').textContent   = s.bw;
+  tracing = false;
+}
+
+/* ── SCROLL REVEAL ───────────────────────────────────────────────────────── */
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('vis'); });
+}, { threshold: 0.08 });
+document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+</script>
+</body>
+</html>
