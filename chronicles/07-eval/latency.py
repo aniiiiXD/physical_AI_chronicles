@@ -70,15 +70,24 @@ batch = {
     "observation.language.attention_mask": lang_mask,
 }
 
-# ── find VLM sub-module by trying known attribute paths ───────────────────────
+# ── find VLM sub-module and attach async-safe event hooks ────────────────────
+# IMPORTANT: do NOT call torch.cuda.synchronize() inside a forward hook —
+# it silently fails. Instead, record events async and read times after the
+# outer synchronize in total_timer.stop().
 stage_times = {"image_prep": [], "vlm_encode": [], "diffusion": [], "total": []}
 _hooks = []
+_vlm_event_pairs = []   # list of (start_event, end_event) per call
 
 def _hook_vlm_start(module, input):
-    module._t = CudaTimer(); module._t.start()
+    s = torch.cuda.Event(enable_timing=True)
+    e = torch.cuda.Event(enable_timing=True)
+    s.record()
+    module._vlm_events = (s, e)
 
 def _hook_vlm_end(module, input, output):
-    stage_times["vlm_encode"].append(module._t.stop())
+    s, e = module._vlm_events
+    e.record()                         # async — no sync here
+    _vlm_event_pairs.append((s, e))
 
 _vlm_candidates = [
     "vlm_with_expert", "vlm", "smolvlm", "vision_language_model",
@@ -95,10 +104,8 @@ for _attr in _vlm_candidates:
         break
 
 if _vlm_found is None:
-    # print children so we know what to use next time
     children = [n for n, _ in policy.model.named_children()]
-    print(f"  [latency] VLM hook unavailable. policy.model children: {children}")
-    print(f"  [latency] Falling back to total-only timing.")
+    print(f"  [latency] VLM hook unavailable. children: {children}")
 
 # ── warmup ────────────────────────────────────────────────────────────────────
 print(f"Warming up ({WARMUP_REPS} passes)...")
@@ -120,15 +127,17 @@ with torch.no_grad():
 
         # full forward pass
         policy.reset()
+        _vlm_event_pairs.clear()
         total_timer.start()
         action = policy.select_action(batch)
-        stage_times["total"].append(total_timer.stop())
+        total_ms = total_timer.stop()       # synchronize() happens here
+        stage_times["total"].append(total_ms)
 
-# estimate diffusion time = total − vlm_encode
-for i in range(BENCH_REPS):
-    if len(stage_times["vlm_encode"]) > i:
-        diff = stage_times["total"][i] - stage_times["vlm_encode"][i]
-        stage_times["diffusion"].append(max(diff, 0))
+        # now safe to read VLM event times (GPU has already synced)
+        if _vlm_event_pairs:
+            vlm_ms = sum(s.elapsed_time(e) for s, e in _vlm_event_pairs)
+            stage_times["vlm_encode"].append(vlm_ms)
+            stage_times["diffusion"].append(max(total_ms - vlm_ms, 0))
 
 # remove hooks
 for h in _hooks: h.remove()
