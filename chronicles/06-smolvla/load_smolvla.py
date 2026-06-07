@@ -46,7 +46,9 @@ for key, feat in policy.config.input_features.items():
 # (it's a vision-LANGUAGE-action model, text tells it what task to do)
 tokenizer = AutoTokenizer.from_pretrained("HuggingFaceTB/SmolVLM2-500M-Video-Instruct")
 task = "pick up the red block and place it in the box"
-lang_tokens = tokenizer(task, return_tensors="pt", padding=True)["input_ids"].to("cuda")
+encoded = tokenizer(task, return_tensors="pt", padding=True)
+lang_tokens = encoded["input_ids"].to("cuda")
+lang_mask   = encoded["attention_mask"].to("cuda")
 print(f"\nTask: \"{task}\"")
 print(f"Token shape: {lang_tokens.shape}")
 
@@ -54,8 +56,9 @@ print(f"Token shape: {lang_tokens.shape}")
 batch = {}
 for key, shape in image_keys.items():
     batch[key] = torch.zeros(1, *shape, device="cuda", dtype=torch.bfloat16)
-batch["observation.state"]          = torch.zeros(1, state_dim, device="cuda", dtype=torch.bfloat16)
-batch["observation.language.tokens"] = lang_tokens
+batch["observation.state"]                   = torch.zeros(1, state_dim, device="cuda", dtype=torch.bfloat16)
+batch["observation.language.tokens"]         = lang_tokens
+batch["observation.language.attention_mask"] = lang_mask
 
 with torch.no_grad():
     action = policy.select_action(batch)
