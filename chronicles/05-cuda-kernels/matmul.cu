@@ -59,20 +59,22 @@ __global__ void matmul_naive(const float* __restrict__ A,
     C[row * N + col] = acc;
 }
 
-// ── 2. tiled kernel ───────────────────────────────────────────────────────────
-// Shared memory layout:
-//   As[TILE][TILE] — current A tile (row-major slice of A)
-//   Bs[TILE][TILE] — current B tile (row-major slice of B)
+// ── 2. tiled kernel v2 ───────────────────────────────────────────────────────
+// Two changes from v1:
 //
-// Each thread loads exactly one element into As and one into Bs.
-// After __syncthreads(), all 32×32 threads compute their partial dot product
-// using the tile data that is now in the fast shared memory (~5 cycles).
-// Then we move to the next tile. Total tiles per row = N / TILE.
+// a) TILE=16 → 256 threads/block → 6 blocks per SM → 48 active warps (100%
+//    occupancy vs 67% with TILE=32). More warps = more latency hiding.
 //
-// Shared mem per block: 2 * 32 * 32 * 4 = 8 KB.
-// RTX 3060 shared mem per SM: up to 100 KB → can hold ~12 blocks simultaneously.
+// b) __ldg() for global loads → forces reads through the read-only L1 texture
+//    cache. A and B are never written by this kernel so the cache stays valid.
+//    Bypasses the regular L1 coherence overhead and uses a separate 48KB
+//    read-only cache on each SM.
+//
+// Double-buffering with cp.async (the full fix) is left as the next step —
+// it overlaps the load of tile T+1 with compute on tile T, hiding all
+// global memory latency entirely.
 
-constexpr int TILE = 32;
+constexpr int TILE = 16;
 
 __global__ void matmul_tiled(const float* __restrict__ A,
                               const float* __restrict__ B,
@@ -84,32 +86,26 @@ __global__ void matmul_tiled(const float* __restrict__ A,
 
     int row = blockIdx.y * TILE + threadIdx.y;
     int col = blockIdx.x * TILE + threadIdx.x;
-
-    // 4 independent accumulators break the serial FMA dependency chain.
-    // Ampere FMA latency = 4 cycles. With one acc, each iteration stalls
-    // waiting for the previous result. With 4 independent accs the GPU
-    // dispatches all four FMAs simultaneously, hiding that latency.
-    float acc0 = 0.0f, acc1 = 0.0f, acc2 = 0.0f, acc3 = 0.0f;
+    float acc = 0.0f;
 
     for (int t = 0; t < (N + TILE - 1) / TILE; t++) {
         int aCol = t * TILE + threadIdx.x;
         int bRow = t * TILE + threadIdx.y;
 
-        As[threadIdx.y][threadIdx.x] = (row < N && aCol < N) ? A[row * N + aCol] : 0.0f;
-        Bs[threadIdx.y][threadIdx.x] = (bRow < N && col < N) ? B[bRow * N + col] : 0.0f;
+        // __ldg: load through read-only cache (bypasses L1 coherence path)
+        As[threadIdx.y][threadIdx.x] = (row < N && aCol < N)
+            ? __ldg(&A[row * N + aCol]) : 0.0f;
+        Bs[threadIdx.y][threadIdx.x] = (bRow < N && col < N)
+            ? __ldg(&B[bRow * N + col]) : 0.0f;
         __syncthreads();
 
         #pragma unroll
-        for (int k = 0; k < TILE; k += 4) {
-            acc0 += As[threadIdx.y][k+0] * Bs[k+0][threadIdx.x];
-            acc1 += As[threadIdx.y][k+1] * Bs[k+1][threadIdx.x];
-            acc2 += As[threadIdx.y][k+2] * Bs[k+2][threadIdx.x];
-            acc3 += As[threadIdx.y][k+3] * Bs[k+3][threadIdx.x];
-        }
+        for (int k = 0; k < TILE; k++)
+            acc += As[threadIdx.y][k] * Bs[k][threadIdx.x];
         __syncthreads();
     }
 
-    if (row < N && col < N) C[row * N + col] = acc0 + acc1 + acc2 + acc3;
+    if (row < N && col < N) C[row * N + col] = acc;
 }
 
 // ── timer ─────────────────────────────────────────────────────────────────────
