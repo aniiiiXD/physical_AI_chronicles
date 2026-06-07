@@ -70,7 +70,7 @@ batch = {
     "observation.language.attention_mask": lang_mask,
 }
 
-# ── hook into SmolVLA internals to time sub-stages ────────────────────────────
+# ── find VLM sub-module by trying known attribute paths ───────────────────────
 stage_times = {"image_prep": [], "vlm_encode": [], "diffusion": [], "total": []}
 _hooks = []
 
@@ -80,13 +80,25 @@ def _hook_vlm_start(module, input):
 def _hook_vlm_end(module, input, output):
     stage_times["vlm_encode"].append(module._t.stop())
 
-# try to attach hooks to the VLM and action model
-try:
-    vlm = policy.model.vlm_with_expert
-    _hooks.append(vlm.register_forward_pre_hook(_hook_vlm_start))
-    _hooks.append(vlm.register_forward_hook(_hook_vlm_end))
-except AttributeError:
-    pass  # model structure different — will rely on total time only
+_vlm_candidates = [
+    "vlm_with_expert", "vlm", "smolvlm", "vision_language_model",
+    "model", "backbone",
+]
+_vlm_found = None
+for _attr in _vlm_candidates:
+    candidate = getattr(policy.model, _attr, None)
+    if candidate is not None and isinstance(candidate, torch.nn.Module):
+        _vlm_found = _attr
+        _hooks.append(candidate.register_forward_pre_hook(_hook_vlm_start))
+        _hooks.append(candidate.register_forward_hook(_hook_vlm_end))
+        print(f"  [latency] hooked VLM at policy.model.{_attr}")
+        break
+
+if _vlm_found is None:
+    # print children so we know what to use next time
+    children = [n for n, _ in policy.model.named_children()]
+    print(f"  [latency] VLM hook unavailable. policy.model children: {children}")
+    print(f"  [latency] Falling back to total-only timing.")
 
 # ── warmup ────────────────────────────────────────────────────────────────────
 print(f"Warming up ({WARMUP_REPS} passes)...")
@@ -142,12 +154,19 @@ print()
 total_p50 = statistics.median(sorted(stage_times["total"]))
 hz = 1000.0 / total_p50
 
-# identify dominant stage
-candidates = {k: statistics.mean(v) for k, v in stage_times.items() if v and k != "total"}
-dominant = max(candidates, key=candidates.get)
+# identify dominant stage — only GPU stages count; image_prep is CPU-side
+gpu_stages = {k: statistics.mean(v) for k, v in stage_times.items()
+              if v and k not in ("total", "image_prep")}
+if gpu_stages:
+    dominant = max(gpu_stages, key=gpu_stages.get)
+    candidates = gpu_stages
+else:
+    # hooks unavailable: attribute total to unknown GPU work
+    dominant = "total GPU (vlm+diffusion, hooks unavailable)"
+    candidates = {"total GPU": statistics.mean(stage_times["total"])}
 
 print(f"  Control Hz  : {hz:.1f} Hz  ({total_p50:.0f} ms per action)")
-print(f"  Dominant op : {dominant}  ({candidates.get(dominant,0):.1f} ms)")
+print(f"  Dominant op : {dominant}  ({list(candidates.values())[0] if 'unavailable' in dominant else candidates.get(dominant,0):.1f} ms)")
 print()
 print("  Interpretation:")
 if hz >= 30:
