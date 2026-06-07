@@ -84,25 +84,32 @@ __global__ void matmul_tiled(const float* __restrict__ A,
 
     int row = blockIdx.y * TILE + threadIdx.y;
     int col = blockIdx.x * TILE + threadIdx.x;
-    float acc = 0.0f;
+
+    // 4 independent accumulators break the serial FMA dependency chain.
+    // Ampere FMA latency = 4 cycles. With one acc, each iteration stalls
+    // waiting for the previous result. With 4 independent accs the GPU
+    // dispatches all four FMAs simultaneously, hiding that latency.
+    float acc0 = 0.0f, acc1 = 0.0f, acc2 = 0.0f, acc3 = 0.0f;
 
     for (int t = 0; t < (N + TILE - 1) / TILE; t++) {
-        // cooperatively load one tile of A and one tile of B
         int aCol = t * TILE + threadIdx.x;
         int bRow = t * TILE + threadIdx.y;
 
         As[threadIdx.y][threadIdx.x] = (row < N && aCol < N) ? A[row * N + aCol] : 0.0f;
         Bs[threadIdx.y][threadIdx.x] = (bRow < N && col < N) ? B[bRow * N + col] : 0.0f;
-        __syncthreads();   // barrier: every thread has loaded its element
+        __syncthreads();
 
-        // compute partial dot product using shared mem (no global mem here)
         #pragma unroll
-        for (int k = 0; k < TILE; k++)
-            acc += As[threadIdx.y][k] * Bs[k][threadIdx.x];
-        __syncthreads();   // barrier: safe to load next tile
+        for (int k = 0; k < TILE; k += 4) {
+            acc0 += As[threadIdx.y][k+0] * Bs[k+0][threadIdx.x];
+            acc1 += As[threadIdx.y][k+1] * Bs[k+1][threadIdx.x];
+            acc2 += As[threadIdx.y][k+2] * Bs[k+2][threadIdx.x];
+            acc3 += As[threadIdx.y][k+3] * Bs[k+3][threadIdx.x];
+        }
+        __syncthreads();
     }
 
-    if (row < N && col < N) C[row * N + col] = acc;
+    if (row < N && col < N) C[row * N + col] = acc0 + acc1 + acc2 + acc3;
 }
 
 // ── timer ─────────────────────────────────────────────────────────────────────
