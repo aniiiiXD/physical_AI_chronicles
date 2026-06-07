@@ -58,7 +58,7 @@ for key, shape in image_keys.items():
     batch[key] = torch.zeros(1, *shape, device="cuda", dtype=torch.bfloat16)
 batch["observation.state"]                   = torch.zeros(1, state_dim, device="cuda", dtype=torch.bfloat16)
 batch["observation.language.tokens"]         = lang_tokens
-batch["observation.language.attention_mask"] = lang_mask
+batch["observation.language.attention_mask"] = lang_mask.bool()
 
 with torch.no_grad():
     action = policy.select_action(batch)
