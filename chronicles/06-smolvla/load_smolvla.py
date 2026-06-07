@@ -16,7 +16,7 @@ SmolVLA architecture:
 """
 
 import torch
-from lerobot.common.policies.smolvla.modeling_smolvla import SmolVLAPolicy
+from lerobot.policies.smolvla.modeling_smolvla import SmolVLAPolicy
 
 # ── load checkpoint ───────────────────────────────────────────────────────────
 print("Loading SmolVLA from HuggingFace Hub...")
