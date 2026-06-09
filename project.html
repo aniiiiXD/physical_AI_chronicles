@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="en" class="no-js">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>document.documentElement.classList.remove('no-js');document.documentElement.classList.add('js');</script>
+<title>AXIOM — Compact World Models for On-Device Robot Intelligence</title>
+
+<meta name="description" content="AXIOM implements, trains, benchmarks, and deploys compact embodied world models — RSSM, DreamerV3, transformer-based — on edge hardware (Jetson Orin). The first reproducible quality-vs-latency benchmark for world model architectures in robotics, built toward on-device planning at real-time frequencies.">
+<meta name="keywords" content="world models, embodied world models, DreamerV3, RSSM, latent dynamics, on-device robotics, edge inference, Jetson Orin, model-based RL, action-conditional prediction, IRIS, TWM, compact world models, robotics foundation models, 1X, OpenAI robotics">
+<meta name="author" content="AXIOM Project">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://axiom.dev/project">
+
+<meta property="og:type" content="article">
+<meta property="og:title" content="AXIOM — Compact World Models for On-Device Robot Intelligence">
+<meta property="og:description" content="Implement, train, and deploy compact world models that run on the robot — not in the cloud. The first benchmark for world model architectures on edge hardware.">
+<meta property="og:site_name" content="AXIOM">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="AXIOM — World Models On-Device">
+<meta name="twitter:description" content="Compact embodied world models that close the planning loop on Jetson Orin. Build toward 1X and OpenAI Robotics.">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "TechArticle",
+      "headline": "AXIOM — Compact World Models for On-Device Robot Intelligence",
+      "description": "A research project implementing, training, benchmarking, and deploying compact embodied world models on edge hardware for real-time robot planning.",
+      "about": ["World Models", "Embodied AI", "Edge Inference", "Model-Based RL", "On-Device Robotics"],
+      "keywords": "world models, DreamerV3, RSSM, on-device, Jetson, compact embodied AI, model-based RL",
+      "articleSection": "Robotics / Embodied AI",
+      "author": { "@type": "Organization", "name": "AXIOM Project" }
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "name": "AXIOM",
+      "description": "Open-source implementation, training harness, benchmark, and edge runtime for compact embodied world models — RSSM/DreamerV3, transformer world models, action-conditional prediction — targeting Jetson Orin and on-device robot planning.",
+      "programmingLanguage": ["Python", "PyTorch", "CUDA"],
+      "applicationCategory": "Embodied AI / World Model Research",
+      "runtimePlatform": ["NVIDIA RTX 4090", "NVIDIA Jetson Orin", "Google Colab"],
+      "keywords": ["DreamerV3", "RSSM", "IRIS", "latent rollouts", "action-conditional", "model distillation", "edge deployment"]
+    }
+  ]
+}
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Hanken+Grotesk:wght@300;400;500;600;700&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f4f0e7;
+    --paper-2:#ece6d8;
+    --paper-3:#e3dccb;
+    --ink:#16140f;
+    --ink-2:#3a352c;
+    --ink-dim:#6c655783;
+    --ink-dim-s:#6c6557;
+    --line:#16140f1a;
+    --line-2:#16140f33;
+    --cobalt:#1a39f0;
+    --cobalt-deep:#0f259e;
+    --verm:#ff3b1d;
+    --paper-rgb:244,240,231;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--paper);color:var(--ink);
+    font-family:"Hanken Grotesk",sans-serif;font-size:16.5px;line-height:1.62;
+    -webkit-font-smoothing:antialiased;overflow-x:hidden;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;
+    background-image:repeating-linear-gradient(0deg,transparent 0 33px,var(--line) 33px 34px);
+    mask-image:linear-gradient(transparent,#000 8%,#000 92%,transparent);
+  }
+  body::after{
+    content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.55;mix-blend-mode:multiply;
+    background:radial-gradient(circle at 12% 0%,rgba(26,57,240,.08),transparent 40%),
+               radial-gradient(circle at 95% 88%,rgba(255,59,29,.05),transparent 45%);
+  }
+  .mono{font-family:"IBM Plex Mono",monospace}
+  .wrap{max-width:1140px;margin:0 auto;padding:0 36px;position:relative;z-index:2}
+  a{color:inherit}
+
+  .bar{
+    position:fixed;top:0;left:0;right:0;z-index:60;
+    display:flex;justify-content:space-between;align-items:center;
+    padding:14px 30px;border-bottom:1px solid var(--line-2);
+    background:rgba(244,240,231,.8);backdrop-filter:blur(8px);
+    font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  }
+  .bar .logo{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:.28em;color:var(--ink)}
+  .bar .logo .dot{width:8px;height:8px;background:var(--cobalt);border-radius:50%;box-shadow:0 0 0 3px rgba(26,57,240,.18)}
+  .bar .tag{color:var(--ink-dim-s)}
+  .bar .tag b{color:var(--verm);font-weight:500}
+
+  header.hero{padding:160px 0 70px;position:relative}
+  .codeflag{
+    display:inline-flex;align-items:center;gap:12px;
+    font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.3em;text-transform:uppercase;
+    color:var(--cobalt-deep);margin-bottom:30px;
+  }
+  .codeflag .ln{width:46px;height:1px;background:var(--cobalt)}
+  h1.title{
+    font-family:"Fraunces",serif;font-weight:400;font-optical-sizing:auto;
+    font-size:clamp(2.4rem,6.2vw,4.4rem);line-height:.92;letter-spacing:-.02em;
+  }
+  h1.title .unit{font-style:italic;font-weight:500;color:var(--cobalt)}
+  .hero .punch{
+    margin-top:34px;max-width:680px;
+    font-family:"Fraunces",serif;font-weight:400;font-size:clamp(1.1rem,1.9vw,1.4rem);line-height:1.32;color:var(--ink-2);
+  }
+  .hero .punch b{font-weight:600;color:var(--ink);font-style:italic}
+  .hero .sub{margin-top:22px;max-width:600px;color:var(--ink-dim-s);font-size:1.06rem}
+
+  .scope{margin:46px 0 0;border:1px solid var(--line-2);border-radius:6px;background:linear-gradient(#fff8,transparent);overflow:hidden;position:relative}
+  .scope .scopebar{display:flex;justify-content:space-between;padding:10px 18px;border-bottom:1px solid var(--line);font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-dim-s)}
+  .scope svg{display:block;width:100%;height:120px}
+  .wave{fill:none;stroke:var(--cobalt);stroke-width:2;stroke-linecap:round;
+    stroke-dasharray:1400;stroke-dashoffset:1400;animation:draw 3.2s ease forwards .3s}
+  .wave2{stroke:var(--verm);opacity:.5;stroke-width:1.5;animation-delay:.7s}
+  @keyframes draw{to{stroke-dashoffset:0}}
+
+  .readout{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line-2);border-top:none;border-radius:0 0 6px 6px;overflow:hidden}
+  .readout .cell{padding:20px 22px;border-right:1px solid var(--line)}
+  .readout .cell:last-child{border-right:none}
+  .readout .v{font-family:"Fraunces",serif;font-size:1.5rem;line-height:1;letter-spacing:-.01em}
+  .readout .v small{font-family:"IBM Plex Mono",monospace;font-size:.85rem;color:var(--cobalt)}
+  .readout .l{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-dim-s);margin-top:9px}
+
+  section{padding:84px 0;position:relative}
+  .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.32em;text-transform:uppercase;color:var(--cobalt-deep);margin-bottom:20px;display:flex;align-items:center;gap:12px}
+  .eyebrow::before{content:"";width:26px;height:1px;background:var(--cobalt)}
+  h2{font-family:"Fraunces",serif;font-weight:400;font-size:clamp(1.55rem,3.2vw,2.3rem);line-height:1.06;letter-spacing:-.015em}
+  h2 em{font-style:italic;color:var(--cobalt)}
+  .lead{max-width:640px;margin-top:22px;font-size:1.12rem;color:var(--ink-2)}
+  .lead.big{font-family:"Fraunces",serif;font-size:clamp(1.15rem,2.1vw,1.5rem);line-height:1.34;color:var(--ink);max-width:780px}
+
+  .split{display:grid;grid-template-columns:1.1fr .9fr;gap:60px;align-items:center}
+  @media(max-width:860px){.split{grid-template-columns:1fr;gap:30px}}
+  .problem-card{border:1px solid var(--line-2);border-radius:6px;background:#fff6;padding:30px;position:relative}
+  .problem-card .row{display:flex;justify-content:space-between;align-items:baseline;padding:14px 0;border-bottom:1px dashed var(--line)}
+  .problem-card .row:last-child{border-bottom:none}
+  .problem-card .row .k{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim-s)}
+  .problem-card .row .val{font-family:"Fraunces",serif;font-size:1.25rem}
+  .problem-card .row .val.bad{color:var(--verm)}
+  .problem-card .row .val.good{color:var(--cobalt)}
+  .problem-card .cap{margin-top:18px;font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--ink-dim-s);letter-spacing:.04em;line-height:1.7}
+
+  .banner{border-top:1px solid var(--ink);border-bottom:1px solid var(--ink);padding:60px 0;text-align:left}
+  .banner .mono-lbl{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--cobalt-deep);margin-bottom:26px}
+  .banner h2{font-size:clamp(1.5rem,3vw,2.3rem);max-width:1000px}
+  .banner h2 .hl{background:linear-gradient(transparent 62%,rgba(26,57,240,.18) 0);padding:0 .05em}
+
+  .deliv{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+  @media(max-width:860px){.deliv{grid-template-columns:1fr}}
+  .dcard{border:1px solid var(--line-2);border-radius:6px;background:linear-gradient(#fff7,#fff2);padding:36px;position:relative;overflow:hidden;transition:transform .4s,box-shadow .4s}
+  .dcard:hover{transform:translateY(-5px);box-shadow:0 22px 50px -28px rgba(22,20,15,.4)}
+  .dcard .idx{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.2em;color:var(--cobalt);border:1px solid var(--line-2);display:inline-block;padding:5px 9px;border-radius:3px}
+  .dcard h3{font-family:"Fraunces",serif;font-weight:500;font-size:1.42rem;line-height:1.1;margin:16px 0 11px}
+  .dcard p{color:var(--ink-2);font-size:1.02rem}
+  .dcard ul{list-style:none;margin-top:18px}
+  .dcard li{display:flex;gap:11px;padding:8px 0;font-size:.98rem;color:var(--ink-2)}
+  .dcard li::before{content:"→";color:var(--cobalt);font-family:"IBM Plex Mono",monospace}
+  .dcard .big-emoji{position:absolute;right:-4px;top:-10px;font-family:"Fraunces",serif;font-size:5.5rem;color:rgba(26,57,240,.06);font-style:italic;pointer-events:none}
+
+  .models{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1px solid var(--line-2);border-radius:6px;overflow:hidden}
+  @media(max-width:820px){.models{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:520px){.models{grid-template-columns:1fr}}
+  .mcell{padding:24px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);background:#fff3;transition:background .3s}
+  .mcell:hover{background:rgba(26,57,240,.05)}
+  .mcell .name{font-family:"Fraunces",serif;font-size:1.18rem;line-height:1.1}
+  .mcell .org{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-dim-s);margin-top:7px}
+  .mcell .pill{display:inline-block;margin-top:14px;font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;padding:4px 8px;border-radius:20px;border:1px solid}
+  .pill.open{color:var(--cobalt-deep);border-color:rgba(26,57,240,.4);background:rgba(26,57,240,.07)}
+  .pill.ref{color:var(--verm);border-color:rgba(255,59,29,.4);background:rgba(255,59,29,.06)}
+  .mcell .note{font-size:.86rem;color:var(--ink-dim-s);margin-top:12px;line-height:1.45}
+
+  .tech{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+  @media(max-width:760px){.tech{grid-template-columns:1fr}}
+  .tcard{display:flex;gap:20px;border:1px solid var(--line-2);border-radius:6px;padding:24px 26px;background:#fff4;transition:border-color .3s}
+  .tcard:hover{border-color:var(--cobalt)}
+  .tcard .no{font-family:"Fraunces",serif;font-style:italic;font-size:1.8rem;color:var(--cobalt);line-height:1;min-width:44px}
+  .tcard h4{font-family:"Hanken Grotesk",sans-serif;font-weight:700;font-size:1.12rem;margin-bottom:6px;letter-spacing:-.01em}
+  .tcard p{font-size:.97rem;color:var(--ink-2);line-height:1.5}
+  .tcard code{font-family:"IBM Plex Mono",monospace;font-size:.8em;background:var(--paper-3);padding:1px 5px;border-radius:3px}
+
+  .pareto-wrap{display:grid;grid-template-columns:1.15fr .85fr;gap:50px;align-items:center}
+  @media(max-width:900px){.pareto-wrap{grid-template-columns:1fr}}
+  .chart{border:1px solid var(--line-2);border-radius:6px;background:#fff7;padding:24px}
+  .chart svg{display:block;width:100%;height:auto}
+  .legend{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.04em;color:var(--ink-2);display:flex;flex-direction:column;gap:14px;margin-top:6px}
+  .legend .li{display:flex;align-items:center;gap:11px}
+  .legend .sw{width:22px;height:0;border-top:2px solid var(--cobalt)}
+  .legend .sw.dash{border-top:2px dashed var(--ink-dim-s)}
+  .legend .sw.dot{width:11px;height:11px;border-radius:50%;border:none;background:var(--cobalt)}
+  .legend .sw.dot2{background:var(--verm)}
+  .chart-note{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--ink-dim-s);margin-top:14px;letter-spacing:.04em;text-align:center}
+
+  .constraints{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  @media(max-width:760px){.constraints{grid-template-columns:1fr}}
+  .ccard{border:1px dashed var(--line-2);border-radius:6px;padding:26px;background:#fff3}
+  .ccard .x{font-family:"Fraunces",serif;font-style:italic;font-size:1.1rem;color:var(--verm);text-decoration:line-through;margin-bottom:10px}
+  .ccard .y{font-family:"Fraunces",serif;font-size:1.2rem;line-height:1.15;margin-bottom:10px}
+  .ccard p{font-size:.95rem;color:var(--ink-2)}
+
+  .wedge{display:grid;grid-template-columns:1fr 1fr;gap:50px}
+  @media(max-width:860px){.wedge{grid-template-columns:1fr;gap:28px}}
+  .wedge .pts{list-style:none}
+  .wedge .pts li{padding:18px 0;border-bottom:1px solid var(--line);display:flex;gap:18px}
+  .wedge .pts li:last-child{border-bottom:none}
+  .wedge .pts .num{font-family:"IBM Plex Mono",monospace;color:var(--cobalt);font-weight:600;font-size:.9rem;padding-top:4px}
+  .wedge .pts b{font-family:"Hanken Grotesk";font-weight:700}
+  .wedge .pts span.d{display:block;color:var(--ink-2);font-size:.98rem;margin-top:3px}
+  .moat{border:1px solid var(--ink);border-radius:6px;padding:34px;background:var(--ink);color:var(--paper);align-self:start}
+  .moat .eyebrow{color:#9db0ff}
+  .moat .eyebrow::before{background:#9db0ff}
+  .moat h3{font-family:"Fraunces",serif;font-weight:400;font-size:1.35rem;line-height:1.2;margin-bottom:14px}
+  .moat p{color:#d8d2c5;font-size:1rem}
+  .moat .kicker{font-family:"IBM Plex Mono",monospace;font-size:11px;color:#ff9b88;letter-spacing:.1em;margin-top:22px;text-transform:uppercase}
+
+  footer{border-top:1px solid var(--ink);padding:70px 0 50px;margin-top:40px}
+  .foot{display:flex;justify-content:space-between;flex-wrap:wrap;gap:30px;align-items:flex-end}
+  .foot .big{font-family:"Fraunces",serif;font-size:clamp(1.7rem,3.6vw,2.7rem);line-height:.95;letter-spacing:-.02em}
+  .foot .big .unit{font-style:italic;color:var(--cobalt)}
+  .foot .meta{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.08em;color:var(--ink-dim-s);text-align:right;line-height:2;text-transform:uppercase}
+
+  .legend-lvl{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:34px;font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.06em;color:var(--ink-dim-s)}
+  .legend-lvl span{display:inline-flex;align-items:center;gap:7px}
+  .lvl{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:9px;font-weight:600;letter-spacing:.08em;padding:2px 6px;border-radius:3px;border:1px solid}
+  .lvl.F{color:#0f259e;border-color:rgba(26,57,240,.4);background:rgba(26,57,240,.08)}
+  .lvl.C{color:#16140f;border-color:var(--line-2);background:#16140f0d}
+  .lvl.E{color:var(--verm);border-color:rgba(255,59,29,.4);background:rgba(255,59,29,.07)}
+  .tracks{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+  @media(max-width:840px){.tracks{grid-template-columns:1fr}}
+  .track{border:1px solid var(--line-2);border-radius:6px;background:#fff5;padding:26px 28px;position:relative;overflow:hidden}
+  .track::before{content:"";position:absolute;left:0;top:0;width:3px;height:100%;background:var(--cobalt)}
+  .track .th{display:flex;align-items:baseline;gap:14px;border-bottom:1px solid var(--line);padding-bottom:15px;margin-bottom:6px}
+  .track .tnum{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;color:var(--cobalt);letter-spacing:.1em}
+  .track h3{font-family:"Fraunces",serif;font-weight:500;font-size:1.3rem;line-height:1.05}
+  .track .tsub{font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-dim-s);margin-top:5px}
+  .track ul{list-style:none}
+  .track li{padding:13px 0;border-bottom:1px dashed var(--line)}
+  .track li:last-child{border-bottom:none}
+  .track li .top{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+  .track li b{font-family:"Hanken Grotesk";font-weight:700;font-size:1rem;letter-spacing:-.01em}
+  .track li p{font-size:.9rem;color:var(--ink-2);line-height:1.45;margin-top:3px}
+  .track li code{font-family:"IBM Plex Mono",monospace;font-size:.78em;background:var(--paper-3);padding:1px 5px;border-radius:3px}
+  .startline{margin-top:28px;border:1px solid var(--ink);border-radius:6px;background:var(--ink);color:var(--paper);padding:26px 30px}
+  .startline .k{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:#9db0ff;margin-bottom:12px}
+  .startline p{font-size:1.02rem;color:#e7e1d4}
+  .startline p b{color:#fff}
+  .startline .seq{margin-top:16px;font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:#ffb9aa;letter-spacing:.02em;line-height:1.9}
+  .startline .seq i{color:#cdd6ff;font-style:normal}
+
+  .prog{display:flex;align-items:center;gap:16px;margin:6px 0 28px}
+  .prog-bar{flex:1;height:9px;background:var(--paper-3);border-radius:20px;overflow:hidden;border:1px solid var(--line-2)}
+  .prog-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--cobalt),#5b73ff);border-radius:20px;transition:width .6s cubic-bezier(.2,.7,.2,1)}
+  .prog-txt{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.07em;color:var(--ink-dim-s);white-space:nowrap}
+
+  .pledge{border:1px solid var(--ink);border-radius:6px;background:var(--ink);color:var(--paper);padding:24px 26px;margin-bottom:24px}
+  .pledge.shake{animation:shk .4s}
+  @keyframes shk{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+  .pledge .k{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:#9db0ff;margin-bottom:12px}
+  .pledge p{color:#e7e1d4;font-size:.98rem;margin-bottom:16px}
+  .pledge p b{color:#fff}
+  .pledge .frm{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+  .pledge input[type=text]{flex:1;min-width:170px;background:#ffffff12;border:1px solid #ffffff33;color:#fff;padding:11px 14px;border-radius:5px;font-family:"IBM Plex Mono",monospace;font-size:13px}
+  .pledge input[type=text]::placeholder{color:#ffffff66}
+  .pledge label{display:flex;align-items:center;gap:8px;font-size:.9rem;color:#d8d2c5;cursor:pointer}
+  .pledge label input{accent-color:#5b73ff;width:16px;height:16px}
+  #signedBox{display:none;font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:#cfe6d8;letter-spacing:.03em}
+  .badge-ok{color:#7dffb0;font-weight:600;margin-right:6px}
+
+  .ladder{display:flex;flex-direction:column;gap:13px}
+  .ms{border:1px solid var(--line-2);border-radius:6px;background:#fff5;padding:21px 24px 22px;position:relative;transition:opacity .35s,border-color .35s}
+  .ms::before{content:"";position:absolute;left:0;top:0;width:3px;height:100%;background:var(--line-2);border-radius:6px 0 0 6px;transition:background .35s}
+  .ms.active::before{background:var(--cobalt)}
+  .ms.done::before{background:#1aa86a}
+  .ms.locked{opacity:.48}
+  .ms-top{display:flex;align-items:center;gap:12px;margin-bottom:9px}
+  .ms-no{font-family:"Fraunces",serif;font-style:italic;font-size:1.25rem;color:var(--cobalt);min-width:28px}
+  .ms.done .ms-no{color:#1aa86a}
+  .ms-phase{font-family:"IBM Plex Mono",monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-dim-s);border:1px solid var(--line-2);padding:3px 8px;border-radius:20px}
+  .ms-phase.A{color:#0f259e;border-color:rgba(26,57,240,.4)}
+  .ms-phase.B{color:#16140f}
+  .ms-phase.C{color:var(--verm);border-color:rgba(255,59,29,.4)}
+  .ms-status{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-dim-s)}
+  .ms.active .ms-status{color:var(--cobalt)}
+  .ms.done .ms-status{color:#1aa86a}
+  .ms h3{font-family:"Fraunces",serif;font-weight:500;font-size:1.16rem;line-height:1.18;margin-bottom:7px}
+  .ms-task{font-size:.95rem;color:var(--ink-2)}
+  .ms-target{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-dim-s);margin-top:9px;letter-spacing:.01em}
+  .ms-target b{color:var(--cobalt-deep)}
+  .ms-submit{display:flex;gap:10px;margin-top:15px}
+  .ms-submit input{flex:1;background:#fff8;border:1px solid var(--line-2);border-radius:5px;padding:10px 13px;font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink)}
+  .ms-submit input.err{border-color:var(--verm);background:rgba(255,59,29,.07)}
+  .ms-submit input:disabled{background:#16140f0a;color:var(--ink-dim-s);cursor:not-allowed}
+  .ms-submit button{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;border:none;border-radius:5px;padding:0 18px;background:var(--cobalt);color:#fff;transition:transform .2s,background .2s}
+  .ms-submit button:hover:not(:disabled){transform:translateY(-2px)}
+  .ms-submit button:disabled{background:var(--line-2);color:var(--ink-dim-s);cursor:not-allowed}
+  .ms-proof{display:none;margin-top:14px;border-top:1px dashed var(--line);padding-top:12px;font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-2);word-break:break-all}
+  .ms.done .ms-proof{display:block}
+  .ms-proof .pk{color:#1aa86a;text-transform:uppercase;letter-spacing:.1em;margin-right:8px;font-weight:600}
+  .ms-proof a{color:var(--cobalt-deep)}
+  .ms-proof .meta{color:var(--ink-dim-s)}
+  .ms-proof .undo{margin-left:10px;color:var(--verm);cursor:pointer;text-decoration:underline}
+  .ladder-ctrl{display:flex;gap:12px;margin-top:22px;flex-wrap:wrap}
+  .ladder-ctrl button{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;background:transparent;border:1px solid var(--line-2);color:var(--ink-2);border-radius:5px;padding:10px 16px;transition:border-color .2s,color .2s}
+  .ladder-ctrl button:hover{border-color:var(--cobalt);color:var(--cobalt-deep)}
+  .ladder-ctrl .danger:hover{border-color:var(--verm);color:var(--verm)}
+
+  .ms-todos{margin-top:15px;border-top:1px dashed var(--line);padding-top:14px}
+  .todos-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .todos-head .tl{font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-dim-s)}
+  .todo-count{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--cobalt-deep);font-weight:600;letter-spacing:.04em}
+  .ms.done .todo-count{color:#1aa86a}
+  .todo-bar{height:5px;background:var(--paper-3);border-radius:20px;overflow:hidden;border:1px solid var(--line-2);margin-bottom:12px}
+  .todo-bar i{display:block;height:100%;width:0;background:#1aa86a;border-radius:20px;transition:width .4s ease}
+  .ms-todos ul{list-style:none;display:grid;gap:3px}
+  .ms-todos li{padding:4px 0}
+  .ms-todos label{display:flex;gap:10px;align-items:flex-start;font-size:.9rem;color:var(--ink-2);cursor:pointer;line-height:1.45}
+  .ms-todos input[type=checkbox]{margin-top:3px;width:15px;height:15px;accent-color:var(--cobalt);flex-shrink:0;cursor:pointer}
+  .ms-todos input:disabled{cursor:not-allowed;opacity:.6}
+  .ms-todos input:checked + span{color:var(--ink-dim-s);text-decoration:line-through;text-decoration-color:#1aa86a}
+  .ms-todos code{font-family:"IBM Plex Mono",monospace;font-size:.78em;background:var(--paper-3);padding:1px 5px;border-radius:3px}
+  .lockhint{display:none;font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--verm);margin-top:10px;letter-spacing:.03em}
+  .ms.needtodos .lockhint{display:block}
+
+  .js .rv{opacity:0;transform:translateY(26px);transition:opacity .85s cubic-bezier(.2,.7,.2,1),transform .85s cubic-bezier(.2,.7,.2,1)}
+  .js .rv.in{opacity:1;transform:none}
+  @media(prefers-reduced-motion:reduce){.js .rv{opacity:1;transform:none;transition:none}}
+  @media(max-width:600px){.readout{grid-template-columns:1fr 1fr}.wrap{padding:0 24px}.bar .tag{display:none}}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="logo"><span class="dot"></span>AXIOM</div>
+  <div class="tag mono">Embodied world models · on-device &nbsp; <b>// first build</b></div>
+</div>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="codeflag rv"><span class="ln"></span>PROJECT 01 · OPEN-SOURCE</div>
+    <h1 class="title rv">The world model<br>that runs on<br>the <span class="unit">robot.</span></h1>
+    <p class="punch rv">The labs are training world models at scale. <b>Nobody has made one compact enough to close the planning loop on the device itself.</b></p>
+    <p class="sub rv">AXIOM implements, trains, benchmarks, and deploys compact embodied world models — RSSM/DreamerV3-class and transformer-based — on edge hardware. Not optimizing someone else's VLA. Building the representation that comes after them.</p>
+
+    <div class="scope rv">
+      <div class="scopebar mono"><span>LATENT STATE · imagine()</span><span>N-STEP ROLLOUT · planning horizon</span><span>TRIG ▲</span></div>
+      <svg viewBox="0 0 1200 120" preserveAspectRatio="none">
+        <path class="wave2" d="M0,60 C80,60 100,25 160,25 C220,25 240,95 300,95 C360,95 380,40 440,40 C500,40 520,80 580,80 C640,80 660,20 740,20 C820,20 840,90 900,90 C960,90 980,50 1040,50 C1100,50 1140,60 1200,60"/>
+        <path class="wave" d="M0,60 L80,60 L100,18 L130,102 L155,60 L340,60 L365,20 L392,100 L418,60 L580,60 L605,14 L632,106 L660,60 L840,60 L865,24 L892,96 L920,60 L1200,60"/>
+      </svg>
+    </div>
+    <div class="readout">
+      <div class="cell"><div class="v">2</div><div class="l">deliverables, one repo</div></div>
+      <div class="cell"><div class="v">4 <small>archs</small></div><div class="l">world model architectures benchmarked</div></div>
+      <div class="cell"><div class="v">1 <small>GPU</small></div><div class="l">DreamerV3 trains on a single card</div></div>
+      <div class="cell"><div class="v">Jetson <small>Orin</small></div><div class="l">on-device planning target</div></div>
+    </div>
+  </div>
+</header>
+
+<!-- PROBLEM -->
+<section>
+  <div class="wrap split">
+    <div class="rv">
+      <div class="eyebrow">The actual gap</div>
+      <h2>World models exist. <em>None of them run on the robot.</em></h2>
+      <p class="lead">Every serious world model lab — 1X, DeepMind, Google — is training at cloud scale. That is correct. But a world model only earns its name when the robot uses it to plan: encode the current observation, roll out N imagined futures conditioned on candidate actions, pick the best one, act. That loop needs to close in under 100ms on the hardware bolted to the robot's compute board.</p>
+      <p class="lead">Nobody has benchmarked this. Nobody has built the distillation and inference pipeline for it. The gap between "we trained a world model" and "the robot plans with it on-device" is a systems + compression problem — and it is completely open.</p>
+    </div>
+    <div class="problem-card rv">
+      <div class="row"><span class="k">Full world model forward pass</span><span class="val bad">~150–300 ms</span></div>
+      <div class="row"><span class="k">N-step rollout (N=10)</span><span class="val bad">> 1 s naïve</span></div>
+      <div class="row"><span class="k">Planning budget on-device</span><span class="val">< 100 ms</span></div>
+      <div class="row"><span class="k">Compact RSSM step (fp16)</span><span class="val bad">~40 ms / step</span></div>
+      <div class="row"><span class="k">AXIOM target</span><span class="val good">< 10 ms / step</span></div>
+      <div class="cap">// Numbers illustrative of the documented gap; precise measurement is the contribution of Artifact A.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ONE LINER -->
+<section class="banner">
+  <div class="wrap">
+    <div class="mono-lbl">The project, in one line</div>
+    <h2>Implement a world model from scratch, train it on real robot data, compress it, and <span class="hl">make it plan on a Jetson in under 100 milliseconds</span> — then publish the honest benchmark nobody has built.</h2>
+  </div>
+</section>
+
+<!-- DELIVERABLES -->
+<section>
+  <div class="wrap">
+    <div class="eyebrow rv">What ships</div>
+    <h2 class="rv">One repo. Two artifacts.</h2>
+    <p class="lead rv" style="margin-bottom:46px">One proves you understand world models at implementation depth. The other proves you can make them useful on real hardware. Together they are the strongest possible signal for 1X and OpenAI Robotics.</p>
+    <div class="deliv">
+      <div class="dcard rv">
+        <span class="big-emoji">α</span>
+        <span class="idx mono">ARTIFACT A</span>
+        <h3>The World Model Benchmark</h3>
+        <p>The first reproducible comparison of compact world model architectures for robotics on edge hardware — the <strong>quality vs. latency Pareto frontier</strong> nobody has cleanly measured.</p>
+        <ul>
+          <li>Same training data, same seeds: DreamerV3 vs IRIS vs TD-MPC2 — apples to apples</li>
+          <li>Metrics that matter: prediction PSNR, N-step rollout accuracy, downstream planning success</li>
+          <li>Measured on consumer GPU and Jetson Orin — not a cluster</li>
+          <li>One command to reproduce any number. This is the seed of the first paper.</li>
+        </ul>
+      </div>
+      <div class="dcard rv">
+        <span class="big-emoji">β</span>
+        <span class="idx mono">ARTIFACT B</span>
+        <h3>The On-Device Planning Runtime</h3>
+        <p>Then you <em>beat</em> the benchmark. A compressed, optimized world model runtime that closes the full perceive → imagine → act loop on a Jetson Orin in real time.</p>
+        <ul>
+          <li>Quantized RSSM: INT8 latent dynamics, full rollout in latent space</li>
+          <li>Parallelized imagine() — N candidate futures computed in one batched pass</li>
+          <li>Action-conditional prediction: the model asks "what happens if I do X?"</li>
+          <li>"Plan on a Jetson in 100ms" — the line that gets a reply from 1X's hiring team</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE TARGETS -->
+<section>
+  <div class="wrap">
+    <div class="eyebrow rv">What you implement and benchmark</div>
+    <h2 class="rv">The compact architectures — <em>not wrappers, implementations.</em></h2>
+    <p class="lead rv" style="margin-bottom:40px">You train these from scratch on open robotics data. Closed models are reference ceilings to beat on the cost and size axes.</p>
+    <div class="models rv">
+      <div class="mcell">
+        <div class="name">DreamerV3</div>
+        <div class="org">Google DeepMind · Hafner et al.</div>
+        <div class="pill open">Implement from scratch</div>
+        <div class="note">The canonical compact world model. RSSM + symlog + free bits. Trains on 1 GPU. Your primary implementation target — understand every line.</div>
+      </div>
+      <div class="mcell">
+        <div class="name">IRIS</div>
+        <div class="org">EPFL · Micheli et al.</div>
+        <div class="pill open">Implement from scratch</div>
+        <div class="note">Transformer world model with discrete token representations. Slower but potentially higher fidelity. Key architecture comparison in Artifact A.</div>
+      </div>
+      <div class="mcell">
+        <div class="name">TD-MPC2</div>
+        <div class="org">UC San Diego · Hansen et al.</div>
+        <div class="pill open">Implement from scratch</div>
+        <div class="note">Latent dynamics + temporal difference learning. Strong on continuous control. Comparator for planning quality on robotics tasks.</div>
+      </div>
+      <div class="mcell">
+        <div class="name">DIAMOND</div>
+        <div class="org">University of Geneva</div>
+        <div class="pill open">Reference / stretch</div>
+        <div class="note">Diffusion-based world model. Highest visual fidelity but slow — included as the quality ceiling and on-device compression challenge.</div>
+      </div>
+      <div class="mcell">
+        <div class="name">1X World Model</div>
+        <div class="org">1X Technologies</div>
+        <div class="pill ref">Ceiling · private</div>
+        <div class="note">The target you are positioning toward. Their world model will run on NEO. Showing you understand the problem they're solving is the signal.</div>
+      </div>
+      <div class="mcell">
+        <div class="name">Genie 2 / GAIA-1</div>
+        <div class="org">Google DeepMind · Wayve</div>
+        <div class="pill ref">Ceiling · scale reference</div>
+        <div class="note">What large-scale training buys. Reference ceilings on prediction quality. AXIOM beats them on size and deployability — not capability.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TECHNIQUES -->
+<section>
+  <div class="wrap">
+    <div class="eyebrow rv">Your technical edge</div>
+    <h2 class="rv">World model engineering, not VLA wrapping.</h2>
+    <p class="lead rv" style="margin-bottom:42px">These techniques require deep architectural understanding. They are the reason this work signals research-level competence, not engineering convenience.</p>
+    <div class="tech">
+      <div class="tcard rv"><div class="no">01</div><div><h4>RSSM implementation from scratch</h4><p>The Recurrent State Space Model is the heart of DreamerV3: a stochastic RNN that learns a compact latent dynamics model of the world. Implementing it from scratch — encoder, prior, posterior, decoder, predictor — is how you prove you understand what a world model actually is.</p></div></div>
+      <div class="tcard rv"><div class="no">02</div><div><h4>Parallelized latent rollouts</h4><p>The <code>imagine()</code> function unrolls the world model N steps into the future. Naïve sequential rollout is too slow for on-device planning. Batching candidate action sequences and running parallel rollouts — then selecting the best trajectory — is the key latency-hiding trick.</p></div></div>
+      <div class="tcard rv"><div class="no">03</div><div><h4>Action-conditional compression</h4><p>Quantizing a dynamics model is different from quantizing a VLA — you must preserve the action-conditioning structure. INT8 quantization on the RSSM transition model, validated by checking that action-conditional rollout accuracy degrades less than 5% from fp16.</p></div></div>
+      <div class="tcard rv"><div class="no">04</div><div><h4>Latent state caching + warm starts</h4><p>The world model's latent state from the previous timestep is the best prior for the next. Caching and warm-starting rollouts — rather than cold-starting from observation every tick — cuts the per-step cost dramatically. Classic systems optimization applied to a new architecture.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- PARETO CHART -->
+<section>
+  <div class="wrap">
+    <div class="eyebrow rv">The chart that earns the citation</div>
+    <h2 class="rv" style="margin-bottom:40px">Quality vs. rollout latency — and where you push it.</h2>
+    <div class="pareto-wrap">
+      <div class="chart rv">
+        <svg viewBox="0 0 560 380" role="img" aria-label="World model quality versus rollout latency Pareto frontier">
+          <line x1="60" y1="20" x2="60" y2="330" stroke="#16140f55" stroke-width="1.5"/>
+          <line x1="60" y1="330" x2="540" y2="330" stroke="#16140f55" stroke-width="1.5"/>
+          <g stroke="#16140f12" stroke-width="1">
+            <line x1="60" y1="100" x2="540" y2="100"/><line x1="60" y1="180" x2="540" y2="180"/><line x1="60" y1="260" x2="540" y2="260"/>
+            <line x1="180" y1="20" x2="180" y2="330"/><line x1="300" y1="20" x2="300" y2="330"/><line x1="420" y1="20" x2="420" y2="330"/>
+          </g>
+          <text x="300" y="365" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="12" fill="#6c6557">ROLLOUT SPEED  →  faster</text>
+          <text x="20" y="175" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="12" fill="#6c6557" transform="rotate(-90 20 175)">PREDICTION QUALITY  →</text>
+          <text x="64" y="345" font-family="IBM Plex Mono,monospace" font-size="10" fill="#6c6557">slow</text>
+          <text x="490" y="345" font-family="IBM Plex Mono,monospace" font-size="10" fill="#6c6557">50Hz</text>
+
+          <path d="M110,75 C190,90 260,145 360,200 C430,235 470,268 520,290" fill="none" stroke="#6c6557" stroke-width="2" stroke-dasharray="6 6"/>
+          <path d="M160,62 C270,68 370,88 460,118 C500,135 515,152 528,168" fill="none" stroke="#1a39f0" stroke-width="2.5"/>
+
+          <g font-family="IBM Plex Mono,monospace" font-size="10" fill="#16140f">
+            <circle cx="120" cy="78" r="6" fill="#6c6557"/><text x="132" y="74">DIAMOND</text>
+            <circle cx="290" cy="148" r="6" fill="#6c6557"/><text x="232" y="142">IRIS</text>
+            <circle cx="380" cy="200" r="6" fill="#6c6557"/><text x="322" y="218">DreamerV3</text>
+            <circle cx="460" cy="268" r="6" fill="#6c6557"/><text x="390" y="284">TD-MPC2</text>
+          </g>
+          <g font-family="IBM Plex Mono,monospace" font-size="10" fill="#0f259e">
+            <line x1="290" y1="148" x2="390" y2="108" stroke="#ff3b1d" stroke-width="1.4" marker-end="url(#a)"/>
+            <circle cx="400" cy="104" r="6" fill="#1a39f0"/>
+            <line x1="380" y1="200" x2="465" y2="132" stroke="#ff3b1d" stroke-width="1.4" marker-end="url(#a)"/>
+            <circle cx="475" cy="128" r="6" fill="#1a39f0"/>
+            <line x1="460" y1="268" x2="518" y2="188" stroke="#ff3b1d" stroke-width="1.4" marker-end="url(#a)"/>
+            <circle cx="524" cy="183" r="6" fill="#1a39f0"/>
+          </g>
+          <defs><marker id="a" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#ff3b1d"/></marker></defs>
+        </svg>
+        <div class="chart-note">Illustrative — exact coordinates are what Artifact A measures honestly.</div>
+      </div>
+      <div class="rv">
+        <div class="legend">
+          <div class="li"><span class="sw dash"></span> Unoptimized architectures — too slow for on-device</div>
+          <div class="li"><span class="sw"></span> AXIOM frontier — compressed, planning-viable</div>
+          <div class="li"><span class="sw dot"></span> Architecture, stock implementation</div>
+          <div class="li"><span class="sw dot" style="background:#1a39f0"></span> Same architecture, AXIOM runtime</div>
+        </div>
+        <p class="lead" style="margin-top:28px">Top-left is the prize: <strong>fast enough to plan, accurate enough to trust.</strong> Every red arrow is an architecture dragged toward on-device viability without retraining — just compression, quantization, and latent rollout optimization. A chart like this is exactly what 1X and OpenAI Robotics researchers want to see from an outside builder.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CONSTRAINTS -->
+<section>
+  <div class="wrap">
+    <div class="eyebrow rv">What you actually need</div>
+    <h2 class="rv" style="margin-bottom:40px">No GPU farm. No robot fleet. No lab affiliation.</h2>
+    <div class="constraints">
+      <div class="ccard rv"><div class="x">train a world model at scale</div><div class="y">Train DreamerV3 on one GPU</div><p>DreamerV3 was designed to train on a single GPU. BridgeData V2 and LIBERO are open. The training is feasible — and implementing it from scratch is the rare, demonstrable signal.</p></div>
+      <div class="ccard rv"><div class="x">collect robot teleoperation data</div><div class="y">Use Open X-Embodiment + LIBERO</div><p>Open X-Embodiment has 1M+ trajectories across 22 embodiments. LIBERO has diverse language-conditioned manipulation. Both are open. You have more data than you need.</p></div>
+      <div class="ccard rv"><div class="x">rent a cluster for inference</div><div class="y">Optimize for Jetson Orin</div><p>The edge deployment constraint is not a handicap — it is the research contribution. Forced compression under a hard compute budget produces more interesting results than unconstrained inference.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- WEDGE — why this signals for 1X + OpenAI -->
+<section>
+  <div class="wrap">
+    <div class="eyebrow rv">Why this positions you for 1X and OpenAI Robotics</div>
+    <h2 class="rv" style="margin-bottom:44px">What this build proves — specifically.</h2>
+    <div class="wedge">
+      <ul class="pts rv">
+        <li><span class="num">01</span><div><b>You implemented a world model, not ran one.</b><span class="d">Any engineer can pip install and run DreamerV3. Implementing RSSM from scratch — writing the prior, posterior, KL balancing, free bits, symlog — is what an ML researcher at 1X can test you on in a technical screen. Build the artifact that makes the answer obvious.</span></div></li>
+        <li><span class="num">02</span><div><b>You understand the evaluation problem.</b><span class="d">There is no agreed metric for "is this world model good for robot control?" Prediction PSNR doesn't tell you if the model gets causality right. Proposing and measuring the right metrics — and being honest about what they miss — is the research contribution that stands out.</span></div></li>
+        <li><span class="num">03</span><div><b>You solve the problem 1X will hit next.</b><span class="d">1X is training their world model now. They will hit the on-device deployment wall when NEO needs to plan without a cloud uplink. Showing you've already characterized the latency-quality tradeoff and compressed a world model for edge deployment makes you the person who solved their next problem before they did.</span></div></li>
+        <li><span class="num">04</span><div><b>The artifact speaks before you do.</b><span class="d">A reproducible benchmark with honest numbers travels further than any resume bullet. One tweet of the Pareto chart with a GitHub link gets you direct contact with researchers at every lab building in this space. Build the artifact; the conversation follows.</span></div></li>
+      </ul>
+      <div class="moat rv">
+        <div class="eyebrow">The honest scope check</div>
+        <h3>"Can you actually compete with 1X on world models?"</h3>
+        <p>No — and you shouldn't try. They have NEO data, compute, and Sam Sinha. The position is not "I trained a bigger world model." It is "I am the person who made a compact world model plan on-device — the problem that comes after training." That is a complementary skill, not a competing one, and it is exactly the gap they need to hire for.</p>
+        <p class="kicker">Build what they need next, not what they already have.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- LEARNING TRACKS -->
+<section id="learn">
+  <div class="wrap">
+    <div class="eyebrow rv">The curriculum behind the project</div>
+    <h2 class="rv">What to actually learn to build this.</h2>
+    <p class="lead rv" style="margin-bottom:30px">Learn just-in-time — when the project blocks, learn the thing that unblocks it. This is the complete map so you always know what the next concept is and why it matters for the build.</p>
+    <div class="legend-lvl rv">
+      <span><span class="lvl F">F</span> Foundation — learn first</span>
+      <span><span class="lvl C">C</span> Core — the working knowledge</span>
+      <span><span class="lvl E">E</span> Edge — where the paper lives</span>
+    </div>
+
+    <div class="tracks">
+      <!-- WORLD MODEL THEORY -->
+      <div class="track rv">
+        <div class="th"><span class="tnum">01</span><div><h3>World Model Theory</h3><div class="tsub">the core — go deepest here</div></div></div>
+        <ul>
+          <li><div class="top"><b>State-space models</b><span class="lvl F">F</span></div><p>The mathematical framework: latent state, transition, emission. RSSM is a stochastic SSM. Understand Kalman filters first — DreamerV3 is their learned, nonlinear descendant.</p></li>
+          <li><div class="top"><b>DreamerV3 end-to-end</b><span class="lvl F">F</span></div><p>Read the paper (Hafner 2023) and every predecessor (Dreamer, DreamerV2). Understand symlog, free bits, KL balancing, the world model / actor / critic split. This is your implementation target.</p></li>
+          <li><div class="top"><b>RSSM architecture</b><span class="lvl C">C</span></div><p>Deterministic + stochastic state, prior vs posterior, the ELBO loss. Implement the forward pass before you train anything — understand what each tensor is.</p></li>
+          <li><div class="top"><b>Planning in latent space</b><span class="lvl C">C</span></div><p><code>imagine()</code> — the function that makes a world model useful for control. Latent rollouts, trajectory optimization, actor-critic in imagination. This is what robots actually use the model for.</p></li>
+          <li><div class="top"><b>JEPA and masked prediction</b><span class="lvl C">C</span></div><p>LeCun's Joint Embedding Predictive Architecture — the alternative paradigm. Predicts in representation space, not pixel space. Read V-JEPA. Understand why 1X might prefer this over RSSM.</p></li>
+          <li><div class="top"><b>Video as world model pretraining</b><span class="lvl E">E</span></div><p>Why 1X hired a video model researcher. Passive video prediction learns physics implicitly — but robots need action-conditioning. The gap between the two is the open research problem.</p></li>
+          <li><div class="top"><b>Action-conditional prediction</b><span class="lvl E">E</span></div><p>Conditioning rollouts on proposed actions is what separates observation prediction from robot-useful planning. How to train, evaluate, and benchmark action-conditional accuracy.</p></li>
+        </ul>
+      </div>
+
+      <!-- GENERATIVE MODELING -->
+      <div class="track rv">
+        <div class="th"><span class="tnum">02</span><div><h3>Generative Modeling</h3><div class="tsub">the representation backbone</div></div></div>
+        <ul>
+          <li><div class="top"><b>VAEs and latent dynamics</b><span class="lvl F">F</span></div><p>The encoder-decoder architecture underlying DreamerV3's world model. Reparameterization trick, ELBO, posterior collapse. The RSSM posterior is a learned VAE posterior over world states.</p></li>
+          <li><div class="top"><b>Transformers — deep</b><span class="lvl F">F</span></div><p>Read the Attention paper and the annotated transformer. Then read IRIS to see how transformers replace the RSSM. You need to understand both architectures to benchmark them fairly.</p></li>
+          <li><div class="top"><b>Discrete tokenization</b><span class="lvl C">C</span></div><p>IRIS uses VQ-VAE-style discrete tokens as world state representations. Discrete tokens enable transformer world models. Also the connection to FAST action tokenization in VLAs.</p></li>
+          <li><div class="top"><b>Diffusion fundamentals</b><span class="lvl C">C</span></div><p>DDPM → DDIM → flow matching. Required to understand DIAMOND (diffusion world model) and π0's action head. Understand the inference-time compute tradeoff — important for on-device.</p></li>
+          <li><div class="top"><b>Representation quality metrics</b><span class="lvl C">C</span></div><p>PSNR, SSIM, FID for pixel predictions. Cosine similarity in latent space. Linear probe accuracy. What each metric actually tells you about whether the world model is learning the right things.</p></li>
+          <li><div class="top"><b>Contrastive + SSL methods</b><span class="lvl E">E</span></div><p>BYOL, SimCLR, DINO — the self-supervised learning landscape behind JEPA-style models. Understanding why prediction in representation space might generalize better than pixel prediction.</p></li>
+        </ul>
+      </div>
+
+      <!-- SYSTEMS + ON-DEVICE -->
+      <div class="track rv">
+        <div class="th"><span class="tnum">03</span><div><h3>Systems &amp; On-Device Engineering</h3><div class="tsub">your differentiator — apply to a new domain</div></div></div>
+        <ul>
+          <li><div class="top"><b>GPU execution model</b><span class="lvl F">F</span></div><p>Warps, shared memory, roofline. RSSM inference is memory-bandwidth bound, not compute bound — knowing this tells you where quantization wins.</p></li>
+          <li><div class="top"><b>RNN inference optimization</b><span class="lvl C">C</span></div><p>Sequential RNN steps don't parallelize across time. Techniques: parallel scan, selective state spaces (Mamba), and GRU kernel fusion. The bottleneck is different from transformer inference.</p></li>
+          <li><div class="top"><b>Quantization for dynamics models</b><span class="lvl C">C</span></div><p>INT8 on the transition model, fp16 on the stochastic sampler. Calibration is harder than for classifiers — the model accumulates error over rollout steps. Measure per-step vs accumulated error.</p></li>
+          <li><div class="top"><b>CUDA streams + batched rollouts</b><span class="lvl C">C</span></div><p>Parallelizing N candidate action trajectories through the world model. Each trajectory is an independent rollout — batch them into one GPU call instead of running sequentially.</p></li>
+          <li><div class="top"><b>Jetson Orin deployment</b><span class="lvl C">C</span></div><p>TensorRT on Orin, power budgeting, thermal constraints. The RSSM is an RNN — verify TensorRT handles recurrent state correctly. Measure latency per rollout step and total planning cycle time.</p></li>
+          <li><div class="top"><b>Latent state management</b><span class="lvl E">E</span></div><p>Warm-starting rollouts from the previous timestep's latent state. Managing the recurrent state across planning calls without recomputing the full observation encoder. The key to sub-100ms planning.</p></li>
+          <li><div class="top"><b>Reproducible benchmarking</b><span class="lvl C">C</span></div><p>Fixed seeds, warmup steps, statistical reporting, Docker pinning. Rigor here is why Artifact A gets cited instead of ignored.</p></li>
+        </ul>
+      </div>
+
+      <!-- ROBOTICS + EMBODIED -->
+      <div class="track rv">
+        <div class="th"><span class="tnum">04</span><div><h3>Robotics &amp; Embodied Context</h3><div class="tsub">speak the language of the labs you're targeting</div></div></div>
+        <ul>
+          <li><div class="top"><b>Model-based RL foundations</b><span class="lvl F">F</span></div><p>Dyna, MBPO, MuZero — the lineage DreamerV3 descends from. Understanding model-based vs model-free tells you why world models matter and what they buy over VLAs.</p></li>
+          <li><div class="top"><b>Open robotics datasets</b><span class="lvl F">F</span></div><p>Open X-Embodiment (1M+ trajectories, 22 embodiments), BridgeData V2, DROID, LIBERO. Know how to load, preprocess, and split these. Your training data for Artifact A.</p></li>
+          <li><div class="top"><b>Sim environments</b><span class="lvl C">C</span></div><p><code>LIBERO</code>, <code>DMControl</code>, <code>MuJoCo</code>, <code>Isaac Lab</code>. DMControl for initial DreamerV3 validation (published baselines to verify against). LIBERO for robotics generalization.</p></li>
+          <li><div class="top"><b>Evaluation methodology</b><span class="lvl C">C</span></div><p>Task success rate, multi-step prediction accuracy, latent space probing. Understand what each measures and what it misses. Proposing a better eval metric for world models is a paper contribution by itself.</p></li>
+          <li><div class="top"><b>The VLA-to-world-model transition</b><span class="lvl C">C</span></div><p>Read π0, RT-2, and DreamerV3 back to back. Understand exactly why VLAs are a local optimum and what world models fix. This is the argument you need to make clearly in any lab conversation.</p></li>
+          <li><div class="top"><b>1X and OpenAI robotics research landscape</b><span class="lvl E">E</span></div><p>Follow 1X's NEO demos, Sam Sinha's prior work at Luma, and OpenAI's physical AI direction. Know the specific problems each team is working on — not generally "robotics," specifically their open problems.</p></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="startline rv">
+      <div class="k">If you start anywhere, start here</div>
+      <p><b>Read the DreamerV3 paper. Then implement the RSSM from scratch in PyTorch — not using existing code.</b> Get it training on DMControl Walker-Walk until you match the paper's reported performance. That single milestone teaches you more about world models than any course, and it's the foundation every milestone below builds on.</p>
+      <div class="seq">FIRST PASS &nbsp;→&nbsp; <i>read DreamerV3 paper</i> &nbsp;·&nbsp; <i>implement RSSM from scratch</i> &nbsp;·&nbsp; <i>train on DMControl</i> &nbsp;·&nbsp; <i>match published baseline</i> &nbsp;·&nbsp; <i>visualize imagined rollouts</i></div>
+    </div>
+  </div>
+</section>
+
+<!-- COMMITMENT LADDER -->
+<section id="milestones">
+  <div class="wrap">
+    <div class="eyebrow rv">Accountability · binding</div>
+    <h2 class="rv">The build ladder.</h2>
+    <p class="lead rv" style="margin-bottom:26px">No milestone unlocks until you submit proof for the one before it. Each milestone produces a concrete artifact — not a concept, a result. Progress is saved in your browser — export any time.</p>
+
+    <div class="prog rv">
+      <div class="prog-bar"><i id="progBar"></i></div>
+      <span class="prog-txt" id="progTxt">0 / 8 locked in · 0%</span>
+    </div>
+
+    <div class="pledge rv" id="pledge">
+      <div class="k">The pledge</div>
+      <p><b>I commit to ship AXIOM — implement a world model from scratch, train it on real robot data, compress it, and make it plan on-device — backing every milestone with a real, submitted result.</b></p>
+      <div class="frm">
+        <input type="text" id="pledgeName" placeholder="Your name">
+        <label><input type="checkbox" id="pledgeChk"> I commit.</label>
+        <button id="pledgeBtn">Sign &amp; begin</button>
+      </div>
+      <div id="signedBox"></div>
+    </div>
+
+    <div class="ladder rv" id="ladder">
+
+      <div class="ms locked" data-id="m1">
+        <div class="ms-top"><span class="ms-no">01</span><span class="ms-phase A">Phase A · Foundations</span><span class="ms-status">Locked</span></div>
+        <h3>Implement RSSM from scratch</h3>
+        <p class="ms-task">Write the Recurrent State Space Model from first principles in PyTorch — deterministic and stochastic state, prior, posterior, KL loss with free bits, symlog transforms. No copying existing implementations. Verify each component produces correct output shapes and gradients flow.</p>
+        <div class="ms-todos">
+          <div class="todos-head"><span class="tl">Checklist</span><span class="todo-count">0/6</span></div>
+          <div class="todo-bar"><i></i></div>
+          <ul>
+            <li><label><input type="checkbox" data-todo><span>Read DreamerV3 paper (Hafner 2023) fully — take notes on each architectural decision and why it exists</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Implement the deterministic GRU state path (h_t from h_{t-1} and z_{t-1})</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Implement the stochastic state: prior p(z_t | h_t) and posterior q(z_t | h_t, x_t)</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Implement symlog + symexp transforms and verify they invert correctly</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Implement KL loss with free bits; verify gradients flow through reparameterization</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Write a unit test that runs one forward pass with synthetic inputs and logs correct output shapes</span></label></li>
+          </ul>
+          <div class="lockhint">Complete every item to unlock proof submission.</div>
+        </div>
+        <div class="ms-target">Submit · <b>repo link — RSSM implementation with passing unit tests and a README explaining each component</b></div>
+        <div class="ms-submit"><input type="text" placeholder="Paste repo link"><button>Lock in</button></div>
+        <div class="ms-proof"></div>
+      </div>
+
+      <div class="ms locked" data-id="m2">
+        <div class="ms-top"><span class="ms-no">02</span><span class="ms-phase A">Phase A · Foundations</span><span class="ms-status">Locked</span></div>
+        <h3>Train DreamerV3 on DMControl — match the paper</h3>
+        <p class="ms-task">Build the full DreamerV3 training loop: world model + actor + critic in latent space. Train on DMControl Walker-Walk and match the paper's reported episode return. This is the validation that your implementation is correct — not approximately right, actually correct.</p>
+        <div class="ms-todos">
+          <div class="todos-head"><span class="tl">Checklist</span><span class="todo-count">0/6</span></div>
+          <div class="todo-bar"><i></i></div>
+          <ul>
+            <li><label><input type="checkbox" data-todo><span>Implement the image encoder (CNN) and decoder (transposed CNN) around the RSSM</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Implement the reward predictor, continue predictor, and value predictor heads</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Implement actor and critic operating in the imagined latent space</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Set up the DMControl environment and data pipeline (replay buffer, preprocessing)</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Run a full training run to 1M environment steps</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Plot training curves; confirm episode return matches DreamerV3 paper within ±15%</span></label></li>
+          </ul>
+          <div class="lockhint">Complete every item to unlock proof submission.</div>
+        </div>
+        <div class="ms-target">Submit · <b>training curve plot + episode return at 1M steps vs. paper baseline</b></div>
+        <div class="ms-submit"><input type="text" placeholder="Paste repo + training curve link + achieved return"><button>Lock in</button></div>
+        <div class="ms-proof"></div>
+      </div>
+
+      <div class="ms locked" data-id="m3">
+        <div class="ms-top"><span class="ms-no">03</span><span class="ms-phase A">Phase A · Foundations</span><span class="ms-status">Locked</span></div>
+        <h3>Visualize imagined rollouts — prove the world model works</h3>
+        <p class="ms-task">Implement the imagine() function. Given a trained world model and a sequence of actions, generate a rollout of N predicted future frames without observing real data. Visualize side-by-side: real future frames vs. imagined frames. This is the single most important sanity check.</p>
+        <div class="ms-todos">
+          <div class="todos-head"><span class="tl">Checklist</span><span class="todo-count">0/5</span></div>
+          <div class="todo-bar"><i></i></div>
+          <ul>
+            <li><label><input type="checkbox" data-todo><span>Implement imagine(h_0, z_0, actions) — pure latent rollout with no observation updates</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Decode imagined latent states to pixel predictions via the decoder</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Generate a 10-step rollout from a held-out trajectory and render the imagined frames</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Create a side-by-side video: ground truth vs. imagined, same starting state, same actions</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Measure per-step PSNR decay over the rollout horizon (expect degradation — quantify it)</span></label></li>
+          </ul>
+          <div class="lockhint">Complete every item to unlock proof submission.</div>
+        </div>
+        <div class="ms-target">Submit · <b>side-by-side video of real vs. imagined rollout + PSNR vs. step curve</b></div>
+        <div class="ms-submit"><input type="text" placeholder="Paste video link + PSNR curve"><button>Lock in</button></div>
+        <div class="ms-proof"></div>
+      </div>
+
+      <div class="ms locked" data-id="m4">
+        <div class="ms-top"><span class="ms-no">04</span><span class="ms-phase B">Phase B · Robotics</span><span class="ms-status">Locked</span></div>
+        <h3>Adapt to a real robotics dataset (LIBERO or BridgeData)</h3>
+        <p class="ms-task">Take your trained DreamerV3 and adapt the data pipeline to LIBERO or a BridgeData V2 subset. Fine-tune or train from scratch on real robot manipulation trajectories. Evaluate: does the world model learn meaningful latent structure from real robot data, or does it collapse? This is where the gap between DMControl and embodied robotics becomes concrete.</p>
+        <div class="ms-todos">
+          <div class="todos-head"><span class="tl">Checklist</span><span class="todo-count">0/5</span></div>
+          <div class="todo-bar"><i></i></div>
+          <ul>
+            <li><label><input type="checkbox" data-todo><span>Load LIBERO or a BridgeData V2 subset; preprocess to the same observation format your world model expects</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Handle offline training (no RL environment — supervised prediction only on the dataset)</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Train for prediction only: encoder + RSSM + decoder, no actor-critic (offline data has no reward signal)</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Evaluate 5-step prediction PSNR on a held-out split</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Visualize imagined rollouts on held-out robot trajectories — does the model predict reasonable next frames?</span></label></li>
+          </ul>
+          <div class="lockhint">Complete every item to unlock proof submission.</div>
+        </div>
+        <div class="ms-target">Submit · <b>dataset used + 5-step prediction PSNR on held-out split + rollout visualization</b></div>
+        <div class="ms-submit"><input type="text" placeholder="Paste dataset + PSNR + visualization link"><button>Lock in</button></div>
+        <div class="ms-proof"></div>
+      </div>
+
+      <div class="ms locked" data-id="m5">
+        <div class="ms-top"><span class="ms-no">05</span><span class="ms-phase B">Phase B · Robotics</span><span class="ms-status">Locked</span></div>
+        <h3>Action-conditional prediction — the key capability</h3>
+        <p class="ms-task">Train the world model to predict future states conditioned on proposed actions. Given the current latent state and an action, the model must predict what will happen next — not just what will happen unconditionally. Evaluate action-conditional accuracy: does taking action A vs. action B produce correctly different predicted futures?</p>
+        <div class="ms-todos">
+          <div class="todos-head"><span class="tl">Checklist</span><span class="todo-count">0/5</span></div>
+          <div class="todo-bar"><i></i></div>
+          <ul>
+            <li><label><input type="checkbox" data-todo><span>Modify the RSSM transition to condition on the action: p(z_t | h_t, a_{t-1})</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Retrain on robot data with action conditioning; verify loss decreases faster than without actions</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Design an action-conditional eval: hold out trajectories, predict with correct vs. random actions, compare PSNR</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Measure the "action sensitivity" gap: correct action prediction PSNR minus random action PSNR</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Visualize: same starting frame, two different action sequences, two different imagined futures</span></label></li>
+          </ul>
+          <div class="lockhint">Complete every item to unlock proof submission.</div>
+        </div>
+        <div class="ms-target">Submit · <b>action sensitivity gap (PSNR delta) + visualization of divergent imagined futures</b></div>
+        <div class="ms-submit"><input type="text" placeholder="Paste PSNR delta + visualization link"><button>Lock in</button></div>
+        <div class="ms-proof"></div>
+      </div>
+
+      <div class="ms locked" data-id="m6">
+        <div class="ms-top"><span class="ms-no">06</span><span class="ms-phase B">Phase B · Benchmark</span><span class="ms-status">Locked</span></div>
+        <h3>Benchmark DreamerV3 vs IRIS on the same data</h3>
+        <p class="ms-task">This is the core of Artifact A. Run IRIS (transformer world model with discrete tokens) on the same robotics dataset under the same compute budget. Compare: prediction quality, rollout stability, per-step latency. This apples-to-apples comparison is the result nobody has published for real robot data.</p>
+        <div class="ms-todos">
+          <div class="todos-head"><span class="tl">Checklist</span><span class="todo-count">0/5</span></div>
+          <div class="todo-bar"><i></i></div>
+          <ul>
+            <li><label><input type="checkbox" data-todo><span>Implement or adapt IRIS on the same robotics dataset; use the same train/val split</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Profile the forward pass latency of both architectures on the same GPU (ms per rollout step)</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Measure 1-step and 5-step prediction PSNR for both architectures</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Build the comparison table: architecture × (latency, PSNR@1, PSNR@5, memory footprint)</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Plot the quality vs. latency Pareto chart — this is the figure that travels</span></label></li>
+          </ul>
+          <div class="lockhint">Complete every item to unlock proof submission.</div>
+        </div>
+        <div class="ms-target">Submit · <b>comparison table + Pareto plot (repo link)</b></div>
+        <div class="ms-submit"><input type="text" placeholder="Paste comparison table + chart + repo link"><button>Lock in</button></div>
+        <div class="ms-proof"></div>
+      </div>
+
+      <div class="ms locked" data-id="m7">
+        <div class="ms-top"><span class="ms-no">07</span><span class="ms-phase C">Phase C · On-Device</span><span class="ms-status">Locked</span></div>
+        <h3>Compress and deploy on Jetson Orin</h3>
+        <p class="ms-task">Compress the best-performing world model (likely DreamerV3) for Jetson Orin deployment. Quantize the RSSM transition model to INT8, fuse ops with TensorRT, and run the full planning cycle on-device: encode observation → warm-start latent state → batch N action-conditional rollouts → select action. Measure total planning cycle time.</p>
+        <div class="ms-todos">
+          <div class="todos-head"><span class="tl">Checklist</span><span class="todo-count">0/6</span></div>
+          <div class="todo-bar"><i></i></div>
+          <ul>
+            <li><label><input type="checkbox" data-todo><span>Export the RSSM and decoder to ONNX; verify output equivalence with the PyTorch model</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Build a TensorRT engine on Jetson Orin; measure per-step latency in ms</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Apply INT8 quantization to the RSSM transition model; verify prediction PSNR degrades less than 5%</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Implement latent state warm-start: persist h_t across planning calls instead of re-encoding from scratch</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Run a batch of 16 action-conditional rollouts (N=10 steps each) on Jetson; measure total wall-clock time</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Record power draw (W) under planning load with Jetson power telemetry</span></label></li>
+          </ul>
+          <div class="lockhint">Complete every item to unlock proof submission.</div>
+        </div>
+        <div class="ms-target">Submit · <b>total planning cycle time (ms) on Jetson + PSNR degradation from INT8 + power draw (W)</b></div>
+        <div class="ms-submit"><input type="text" placeholder="Paste planning cycle ms + PSNR delta + watts"><button>Lock in</button></div>
+        <div class="ms-proof"></div>
+      </div>
+
+      <div class="ms locked" data-id="m8">
+        <div class="ms-top"><span class="ms-no">08</span><span class="ms-phase C">Phase C · Ship</span><span class="ms-status">Locked</span></div>
+        <h3>Publish the benchmark — make it citeable</h3>
+        <p class="ms-task">Open the repo, publish the benchmark leaderboard, and write the result. The writeup should be honest: what architectures were compared, on what data, under what compute, and what the Pareto chart actually shows. This is what researchers at 1X and OpenAI see. Make the numbers reproducible in one command.</p>
+        <div class="ms-todos">
+          <div class="todos-head"><span class="tl">Checklist</span><span class="todo-count">0/5</span></div>
+          <div class="todo-bar"><i></i></div>
+          <ul>
+            <li><label><input type="checkbox" data-todo><span>Clean repo: README with one-command reproduce, license, requirements.txt pinned</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Publish the benchmark table and Pareto chart with all seeds and confidence intervals</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Write the result: what you measured, what it shows, what it doesn't, what to do next</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Post to X and HN with the Pareto chart; open a discussion issue inviting other implementations</span></label></li>
+            <li><label><input type="checkbox" data-todo><span>Email 3 researchers at 1X, OpenAI Robotics, or DeepMind robotics with the artifact and your numbers</span></label></li>
+          </ul>
+          <div class="lockhint">Complete every item to unlock proof submission.</div>
+        </div>
+        <div class="ms-target">Submit · <b>public repo + benchmark page + writeup + evidence of outreach</b></div>
+        <div class="ms-submit"><input type="text" placeholder="Paste repo + writeup + post links"><button>Lock in</button></div>
+        <div class="ms-proof"></div>
+      </div>
+
+    </div>
+
+    <div class="ladder-ctrl rv">
+      <button id="exportBtn">↓ Export results (JSON)</button>
+      <button id="resetBtn" class="danger">Reset progress</button>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <div class="big">Build the<br>model that <span class="unit">imagines.</span></div>
+      <div class="meta mono">
+        Project AXIOM · 01<br>
+        Compact world models · on-device planning<br>
+        Architectures · DreamerV3 · IRIS · TD-MPC2<br>
+        Data · Open X-Embodiment · LIBERO · BridgeData<br>
+        Target · Jetson Orin · planning in &lt; 100ms
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  const io=new IntersectionObserver((es)=>{
+    es.forEach((e)=>{
+      if(e.isIntersecting){
+        const sibs=[...e.target.parentElement.querySelectorAll('.rv')];
+        e.target.style.transitionDelay=(Math.min(Math.max(sibs.indexOf(e.target),0),6)*70)+'ms';
+        e.target.classList.add('in');
+        io.unobserve(e.target);
+      }
+    });
+  },{threshold:.14,rootMargin:'0px 0px -7% 0px'});
+  document.querySelectorAll('.rv').forEach(el=>io.observe(el));
+</script>
+
+<script>
+(function(){
+  const KEY='axiom_progress_v1';
+  const ladder=document.getElementById('ladder');
+  if(!ladder) return;
+  const cards=[...ladder.querySelectorAll('.ms')];
+  const ids=cards.map(c=>c.dataset.id);
+  const todosOf=card=>[...card.querySelectorAll('input[data-todo]')];
+  const totalTodos=cards.reduce((n,c)=>n+todosOf(c).length,0);
+  const pledge=document.getElementById('pledge');
+  const nameI=document.getElementById('pledgeName');
+  const chk=document.getElementById('pledgeChk');
+  const signBtn=document.getElementById('pledgeBtn');
+  const signedBox=document.getElementById('signedBox');
+  const bar=document.getElementById('progBar');
+  const ptxt=document.getElementById('progTxt');
+
+  const def=()=>({signed:false,name:'',date:'',items:{},todos:{}});
+  let state; try{state=JSON.parse(localStorage.getItem(KEY))||def();}catch(e){state=def();}
+  if(!state.items) state.items={};
+  if(!state.todos) state.todos={};
+  const save=()=>localStorage.setItem(KEY,JSON.stringify(state));
+  const esc=s=>(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const linkify=s=>/^https?:\/\//i.test(s)?'<a href="'+esc(s)+'" target="_blank" rel="noopener">'+esc(s)+'</a>':esc(s);
+  const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+  const tdoneCount=id=>{const t=state.todos[id]||{};return Object.keys(t).filter(k=>t[k]).length;};
+
+  function render(){
+    if(state.signed){
+      pledge.classList.add('signed');
+      signedBox.style.display='block';
+      signedBox.innerHTML='<span class="badge-ok">◆ Committed</span>'+esc(state.name)+' · since '+esc(state.date);
+      nameI.style.display='none'; chk.parentElement.style.display='none'; signBtn.style.display='none';
+    } else {
+      pledge.classList.remove('signed'); signedBox.style.display='none';
+      nameI.style.display=''; chk.parentElement.style.display=''; signBtn.style.display='';
+    }
+    let done=0, tasksDone=0;
+    cards.forEach((card,i)=>{
+      const id=card.dataset.id, isDone=!!state.items[id];
+      const prevDone = i===0 ? true : !!state.items[ids[i-1]];
+      const unlocked = state.signed && prevDone;
+      const todos=todosOf(card), nTodos=todos.length;
+      const td=tdoneCount(id), allTodos=td>=nTodos;
+      tasksDone += isDone ? nTodos : td;
+
+      card.classList.toggle('done',isDone);
+      card.classList.toggle('locked',!unlocked && !isDone);
+      card.classList.toggle('active',unlocked && !isDone);
+      card.classList.toggle('needtodos',unlocked && !isDone && !allTodos);
+
+      todos.forEach((box,idx)=>{
+        const checked = isDone ? true : !!(state.todos[id]&&state.todos[id][idx]);
+        box.checked=checked;
+        box.disabled = isDone || !unlocked;
+      });
+      const shownDone = isDone ? nTodos : td;
+      card.querySelector('.todo-count').textContent=shownDone+'/'+nTodos;
+      card.querySelector('.todo-bar i').style.width=(nTodos? Math.round(shownDone/nTodos*100):0)+'%';
+
+      const input=card.querySelector('.ms-submit input');
+      const btn=card.querySelector('.ms-submit button');
+      const status=card.querySelector('.ms-status');
+      const proof=card.querySelector('.ms-proof');
+      if(isDone){
+        done++;
+        status.textContent='✓ Locked in';
+        input.disabled=true; btn.disabled=true; input.value=state.items[id].proof;
+        proof.innerHTML='<span class="pk">Proof</span>'+linkify(state.items[id].proof)+' <span class="meta">· '+esc(state.items[id].ts)+'</span> <span class="undo" data-undo="'+id+'">undo</span>';
+      } else if(unlocked){
+        status.textContent = allTodos ? 'Awaiting proof' : td+'/'+nTodos+' tasks';
+        input.disabled=!allTodos; btn.disabled=!allTodos;
+      } else {
+        status.textContent='Locked'; input.disabled=true; btn.disabled=true;
+      }
+    });
+    const pct=Math.round(done/ids.length*100);
+    bar.style.width=pct+'%';
+    ptxt.textContent=done+' / '+ids.length+' milestones · '+tasksDone+'/'+totalTodos+' tasks · '+pct+'%'+(done===ids.length?' · SHIPPED ✦':'');
+  }
+
+  signBtn.addEventListener('click',()=>{
+    if(!chk.checked || !nameI.value.trim()){pledge.classList.add('shake');setTimeout(()=>pledge.classList.remove('shake'),420);return;}
+    state.signed=true; state.name=nameI.value.trim(); state.date=today(); save(); render();
+  });
+
+  ladder.addEventListener('change',e=>{
+    const box=e.target;
+    if(!box.matches('input[data-todo]')) return;
+    const card=box.closest('.ms'); const id=card.dataset.id;
+    const idx=todosOf(card).indexOf(box);
+    if(!state.todos[id]) state.todos[id]={};
+    state.todos[id][idx]=box.checked; save(); render();
+  });
+
+  cards.forEach(card=>{
+    const input=card.querySelector('.ms-submit input');
+    const btn=card.querySelector('.ms-submit button');
+    btn.addEventListener('click',()=>{
+      if(btn.disabled) return;
+      const v=input.value.trim();
+      if(v.length<4){input.classList.add('err');setTimeout(()=>input.classList.remove('err'),420);input.focus();return;}
+      state.items[card.dataset.id]={proof:v,ts:today()}; save(); render();
+      const next=cards.find(c=>!state.items[c.dataset.id]);
+      if(next) next.scrollIntoView({behavior:'smooth',block:'center'});
+    });
+    input.addEventListener('keydown',e=>{if(e.key==='Enter')btn.click();});
+  });
+
+  ladder.addEventListener('click',e=>{
+    const u=e.target.getAttribute('data-undo');
+    if(u){ delete state.items[u]; save(); render(); }
+  });
+
+  document.getElementById('exportBtn').addEventListener('click',()=>{
+    const detail=cards.map((c,i)=>({id:c.dataset.id,milestone:c.querySelector('h3').textContent,
+      tasks_done:(state.items[c.dataset.id]?todosOf(c).length:tdoneCount(c.dataset.id)),tasks_total:todosOf(c).length,
+      locked_in:!!state.items[c.dataset.id],proof:state.items[c.dataset.id]?state.items[c.dataset.id].proof:null}));
+    const payload={project:'AXIOM',exported:today(),signed_by:state.name||null,since:state.date||null,milestones:detail,raw:state};
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='axiom-progress.json'; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  });
+  document.getElementById('resetBtn').addEventListener('click',()=>{
+    if(confirm('Reset all milestone progress, todos, and the pledge? This cannot be undone.')){
+      state=def(); save(); nameI.value=''; chk.checked=false; render();
+    }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

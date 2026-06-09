@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Field Report — The Robotics Frontier, 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400;500;700&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#0a0a0b;
+    --panel:#101012;
+    --panel-2:#15151a;
+    --line:rgba(236,231,221,.10);
+    --line-strong:rgba(236,231,221,.22);
+    --ink:#ECE7DD;
+    --ink-dim:#9a958b;
+    --ink-faint:#615d56;
+    --amber:#FF7A18;
+    --amber-soft:#ffb06b;
+    --cyan:#46e0d6;
+    --red:#ff5a4d;
+    --grid:rgba(236,231,221,.035);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--void);
+    color:var(--ink);
+    font-family:"Newsreader",Georgia,serif;
+    font-size:18px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* blueprint grid + grain atmosphere */
+  body::before{
+    content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+    background-image:
+      linear-gradient(var(--grid) 1px,transparent 1px),
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+    background-size:46px 46px;
+    mask-image:radial-gradient(ellipse 120% 90% at 50% 0%,#000 30%,transparent 90%);
+  }
+  body::after{
+    content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;
+    background:radial-gradient(circle at 15% 8%,rgba(255,122,24,.10),transparent 38%),
+               radial-gradient(circle at 88% 70%,rgba(70,224,214,.06),transparent 42%);
+  }
+  .mono{font-family:"JetBrains Mono",monospace}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 32px;position:relative;z-index:2}
+
+  /* ---- top status bar ---- */
+  .statusbar{
+    position:fixed;top:0;left:0;right:0;z-index:50;
+    display:flex;justify-content:space-between;align-items:center;
+    padding:11px 28px;
+    font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-dim);
+    border-bottom:1px solid var(--line);
+    background:rgba(10,10,11,.72);backdrop-filter:blur(10px);
+  }
+  .statusbar .live{display:flex;align-items:center;gap:8px}
+  .blip{width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 10px var(--amber);animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+  .statusbar .right{display:flex;gap:24px}
+  .statusbar .right span{color:var(--ink-faint)}
+
+  /* ---- side index ---- */
+  .index{
+    position:fixed;left:28px;top:50%;transform:translateY(-50%);z-index:40;
+    display:flex;flex-direction:column;gap:18px;
+  }
+  .index a{
+    display:flex;align-items:center;gap:11px;text-decoration:none;
+    font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.12em;
+    color:var(--ink-faint);transition:color .3s;
+  }
+  .index a .tick{width:22px;height:1px;background:var(--line-strong);transition:all .3s}
+  .index a:hover,.index a.on{color:var(--ink)}
+  .index a.on .tick,.index a:hover .tick{width:40px;background:var(--amber)}
+  @media(max-width:1340px){.index{display:none}}
+
+  /* ---- HERO ---- */
+  header.hero{
+    min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+    padding:120px 0 80px;position:relative;
+  }
+  .kicker{
+    font-family:"JetBrains Mono",monospace;font-size:12px;letter-spacing:.42em;text-transform:uppercase;
+    color:var(--amber);margin-bottom:30px;
+  }
+  .hero h1{
+    font-family:"Instrument Serif",serif;font-weight:400;
+    font-size:clamp(3.4rem,9vw,8.4rem);line-height:.94;letter-spacing:-.01em;
+    margin-bottom:34px;
+  }
+  .hero h1 em{font-style:italic;color:var(--amber-soft)}
+  .hero .lede{
+    max-width:640px;font-size:clamp(1.15rem,2vw,1.42rem);color:var(--ink-dim);
+    line-height:1.5;font-weight:300;
+  }
+  .hero .meta{
+    margin-top:54px;display:flex;flex-wrap:wrap;gap:38px;
+    font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);
+  }
+  .hero .meta b{display:block;color:var(--ink);font-weight:500;font-size:13px;margin-top:5px;letter-spacing:.04em}
+  .scrollcue{
+    position:absolute;bottom:36px;left:50%;transform:translateX(-50%);
+    font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.3em;color:var(--ink-faint);
+    display:flex;flex-direction:column;align-items:center;gap:10px;
+  }
+  .scrollcue .bar{width:1px;height:40px;background:linear-gradient(var(--amber),transparent);animation:drop 2.2s infinite}
+  @keyframes drop{0%{transform:scaleY(0);transform-origin:top}50%{transform:scaleY(1);transform-origin:top}50.1%{transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
+
+  /* ---- section frame ---- */
+  section{padding:96px 0;position:relative}
+  .sec-head{display:flex;align-items:baseline;gap:24px;margin-bottom:14px}
+  .sec-head .num{
+    font-family:"JetBrains Mono",monospace;font-size:13px;letter-spacing:.2em;color:var(--amber);
+    border:1px solid var(--line-strong);padding:6px 11px;border-radius:2px;
+  }
+  .eyebrow{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.34em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:22px}
+  h2{font-family:"Instrument Serif",serif;font-weight:400;font-size:clamp(2.2rem,5vw,4rem);line-height:1;letter-spacing:-.01em}
+  h2 .sub{display:block;font-family:"Newsreader",serif;font-size:1.05rem;color:var(--ink-dim);margin-top:16px;font-style:italic;letter-spacing:0;max-width:680px;line-height:1.5}
+  .rule{height:1px;background:var(--line);margin:0 0 40px;position:relative}
+  .rule::before{content:"";position:absolute;left:0;top:0;width:80px;height:1px;background:var(--amber)}
+
+  /* badges */
+  .badge{
+    display:inline-flex;align-items:center;gap:7px;
+    font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    padding:5px 10px;border-radius:2px;border:1px solid;
+  }
+  .badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+  .b-verified{color:var(--cyan);border-color:rgba(70,224,214,.4);background:rgba(70,224,214,.06)}
+  .b-flag{color:var(--amber);border-color:rgba(255,122,24,.4);background:rgba(255,122,24,.06)}
+  .b-weak{color:var(--red);border-color:rgba(255,90,77,.4);background:rgba(255,90,77,.06)}
+
+  /* ---- leaderboard ---- */
+  .board{border:1px solid var(--line);border-radius:4px;overflow:hidden;background:linear-gradient(var(--panel),var(--void))}
+  .board .row{display:grid;grid-template-columns:54px 1.6fr 2fr 1.1fr 1.3fr;gap:18px;padding:20px 26px;border-bottom:1px solid var(--line);align-items:center}
+  .board .row:last-child{border-bottom:none}
+  .board .head{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-faint);background:var(--panel-2)}
+  .board .row .pn{font-family:"JetBrains Mono",monospace;color:var(--amber);font-size:14px}
+  .board .row .nm{font-family:"Instrument Serif",serif;font-size:1.4rem;line-height:1.1}
+  .board .row .org{color:var(--ink-dim);font-size:.92rem}
+  .board .row.body:hover{background:rgba(255,122,24,.03)}
+  .mat{display:inline-block;font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.1em;color:var(--ink-dim)}
+  .gauge{height:5px;border-radius:3px;background:var(--line-strong);overflow:hidden;margin-top:8px}
+  .gauge i{display:block;height:100%;border-radius:3px}
+  .g-hi{background:var(--cyan)}.g-mid{background:var(--amber)}.g-lo{background:var(--red)}
+
+  /* pillar layout */
+  .pillar{display:grid;grid-template-columns:1fr;gap:30px}
+  .lead-row{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-bottom:34px}
+
+  /* stat strip */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:4px;overflow:hidden;margin:38px 0}
+  .stat{background:var(--panel);padding:26px 22px;transition:background .3s}
+  .stat:hover{background:var(--panel-2)}
+  .stat .v{font-family:"Instrument Serif",serif;font-size:clamp(2.2rem,4vw,3.1rem);line-height:1;color:var(--ink)}
+  .stat .v small{font-size:1.1rem;color:var(--amber);font-family:"JetBrains Mono",monospace}
+  .stat .l{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-dim);margin-top:12px;line-height:1.5}
+
+  /* cards */
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;margin-top:8px}
+  .card{
+    border:1px solid var(--line);border-radius:4px;padding:28px;background:var(--panel);
+    position:relative;overflow:hidden;transition:transform .35s,border-color .35s;
+  }
+  .card:hover{transform:translateY(-4px);border-color:var(--line-strong)}
+  .card::after{content:"";position:absolute;top:0;left:0;width:100%;height:2px;background:linear-gradient(90deg,var(--amber),transparent);opacity:0;transition:opacity .35s}
+  .card:hover::after{opacity:1}
+  .card .tag{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--amber);margin-bottom:14px}
+  .card h3{font-family:"Instrument Serif",serif;font-weight:400;font-size:1.7rem;line-height:1.1;margin-bottom:12px}
+  .card p{font-size:1rem;color:var(--ink-dim);line-height:1.55}
+  .card .src{margin-top:16px;font-family:"JetBrains Mono",monospace;font-size:10px;color:var(--ink-faint);letter-spacing:.05em}
+
+  /* open problems list */
+  .open{margin-top:40px;border-top:1px solid var(--line);padding-top:28px}
+  .open .lbl{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:18px}
+  .open ul{list-style:none}
+  .open li{
+    display:flex;gap:16px;padding:13px 0;border-bottom:1px dashed var(--line);
+    color:var(--ink-dim);font-size:1.02rem;
+  }
+  .open li::before{content:"▸";color:var(--amber);font-family:"JetBrains Mono",monospace;flex-shrink:0}
+  .open li:last-child{border-bottom:none}
+
+  /* note callout */
+  .note{border-left:2px solid var(--amber);background:rgba(255,122,24,.04);padding:18px 24px;margin:30px 0;font-size:1.02rem;color:var(--ink-dim);font-style:italic}
+  .note.red{border-color:var(--red);background:rgba(255,90,77,.05)}
+
+  /* refuted */
+  .refuted{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px}
+  .ref-card{border:1px solid rgba(255,90,77,.25);border-radius:4px;padding:26px;background:rgba(255,90,77,.03)}
+  .ref-card .vote{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.12em;color:var(--red);margin-bottom:14px}
+  .ref-card .vote .strike{text-decoration:line-through;color:var(--ink-faint);margin-left:8px}
+  .ref-card p{font-size:1rem;color:var(--ink-dim)}
+
+  /* footer */
+  footer{padding:90px 0 70px;border-top:1px solid var(--line);margin-top:60px}
+  .foot-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:50px;align-items:start}
+  footer h2{margin-bottom:24px}
+  .methodology{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.05em;color:var(--ink-dim);line-height:2}
+  .methodology .k{color:var(--ink)}
+  .methodology .num{color:var(--amber)}
+  .colophon{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--ink-faint);letter-spacing:.1em;text-align:center;margin-top:70px;text-transform:uppercase;line-height:2}
+  @media(max-width:760px){
+    .board .row{grid-template-columns:36px 1fr;gap:10px}
+    .board .row .colhide{display:none}
+    .foot-grid{grid-template-columns:1fr}
+    .statusbar .right{display:none}
+    .wrap{padding:0 22px}
+  }
+  /* reveal */
+  .rv{opacity:0;transform:translateY(28px);transition:opacity .9s cubic-bezier(.2,.7,.2,1),transform .9s cubic-bezier(.2,.7,.2,1)}
+  .rv.in{opacity:1;transform:none}
+</style>
+</head>
+<body>
+
+<div class="statusbar mono">
+  <div class="live"><span class="blip"></span> Field Report // Active</div>
+  <div class="right">
+    <span>CLASSIFICATION&nbsp;</span>OPEN
+    <span>UPDATED&nbsp;</span>2026.06.04
+    <span>SRC&nbsp;</span>29 PRIMARY
+  </div>
+</div>
+
+<nav class="index">
+  <a href="#top" class="on"><span class="tick"></span>OVERVIEW</a>
+  <a href="#p1"><span class="tick"></span>01 · MANIPULATION</a>
+  <a href="#p2"><span class="tick"></span>02 · EMBODIMENT</a>
+  <a href="#p3"><span class="tick"></span>03 · ON-DEVICE</a>
+  <a href="#p4"><span class="tick"></span>04 · DEPLOYMENT</a>
+  <a href="#method"><span class="tick"></span>METHOD</a>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <div class="kicker rv">The Robotics Frontier · 2026 Survey</div>
+    <h1 class="rv">Solve the hardest<br>problems in robotics —<br>and put them <em>to work</em>.</h1>
+    <p class="lede rv">An adversarially fact-checked survey of the four frontier problems standing between controlled lab demonstrations and general-purpose machines that hold up in the real, unstructured world.</p>
+    <div class="meta rv">
+      <div>Pillars surveyed<b>04 frontier domains</b></div>
+      <div>Claims verified<b>23 confirmed / 2 killed</b></div>
+      <div>Method<b>3-vote adversarial check</b></div>
+      <div>Leaders<b>Physical Intelligence · DeepMind</b></div>
+    </div>
+  </div>
+  <div class="scrollcue mono">SCROLL<div class="bar"></div></div>
+</header>
+
+<!-- OVERVIEW BOARD -->
+<section id="overview">
+  <div class="wrap">
+    <div class="eyebrow rv">Situation Report</div>
+    <h2 class="rv" style="margin-bottom:26px">The field has converged on one paradigm.<span class="sub">The Vision-Language-Action (VLA) model — a pretrained vision-language backbone driving continuous actions via flow matching (a diffusion variant) and action chunking, at up to 50&nbsp;Hz. Two organizations lead across the most pillars.</span></h2>
+    <div class="board rv">
+      <div class="row head">
+        <div>#</div><div>Pillar</div><div>Leaders</div><div class="colhide">Maturity</div><div class="colhide">Evidence</div>
+      </div>
+      <div class="row body">
+        <div class="pn">01</div>
+        <div><div class="nm">Long-Horizon<br>Dexterous Manipulation</div></div>
+        <div class="org">Physical Intelligence · Google DeepMind</div>
+        <div class="colhide"><span class="mat">DEMONSTRATED</span><div class="gauge"><i class="g-hi" style="width:88%"></i></div></div>
+        <div class="colhide"><span class="badge b-verified">Verified</span></div>
+      </div>
+      <div class="row body">
+        <div class="pn">02</div>
+        <div><div class="nm">Cross-Embodiment<br>Learning</div></div>
+        <div class="org">Physical Intelligence · Open X-Embodiment · DeepMind</div>
+        <div class="colhide"><span class="mat">POSITIVE TRANSFER</span><div class="gauge"><i class="g-hi" style="width:82%"></i></div></div>
+        <div class="colhide"><span class="badge b-verified">Verified</span></div>
+      </div>
+      <div class="row body">
+        <div class="pn">03</div>
+        <div><div class="nm">On-Device<br>Physical Intelligence</div></div>
+        <div class="org">Figure · DeepMind · NVIDIA · Physical Intelligence</div>
+        <div class="colhide"><span class="mat">PRODUCTIZING</span><div class="gauge"><i class="g-mid" style="width:55%"></i></div></div>
+        <div class="colhide"><span class="badge b-flag">Indicative</span></div>
+      </div>
+      <div class="row body">
+        <div class="pn">04</div>
+        <div><div class="nm">Safe & Reliable<br>Deployment</div></div>
+        <div class="org">Physical Intelligence · Toyota Research · Safety labs</div>
+        <div class="colhide"><span class="mat">EARLIEST STAGE</span><div class="gauge"><i class="g-lo" style="width:28%"></i></div></div>
+        <div class="colhide"><span class="badge b-weak">Open</span></div>
+      </div>
+    </div>
+    <div class="note rv">Honest framing: pillars 01–02 rest on high-confidence, independently cross-checked findings. Pillars 03–04 draw on fetched primary sources that did not survive the formal verification cut — directional, not adversarially confirmed.</div>
+  </div>
+</section>
+
+<!-- PILLAR 01 -->
+<section id="p1">
+  <div class="wrap">
+    <div class="sec-head rv"><span class="num">01</span></div>
+    <div class="eyebrow rv">Frontier Domain</div>
+    <h2 class="rv">Long-Horizon Dexterous Manipulation<span class="sub">End-to-end models that move beyond single-step pick-and-place toward complex, multi-stage tasks performed with dexterous, human-like hands — following language, holding memory across long sequences, generalizing past the lab.</span></h2>
+    <div class="rule rv" style="margin-top:34px"></div>
+    <div class="lead-row rv">
+      <span class="badge b-verified">High Confidence · Verified</span>
+      <span class="badge b-flag">Leaders: Physical Intelligence, Google DeepMind</span>
+    </div>
+
+    <div class="stats rv">
+      <div class="stat"><div class="v">50<small>Hz</small></div><div class="l">Dexterous control frequency, π0 flow-matching VLA</div></div>
+      <div class="stat"><div class="v">&gt;80<small>%</small></div><div class="l">Success on half of 20 dexterous tasks, Gemini Robotics</div></div>
+      <div class="stat"><div class="v">300<small>M</small></div><div class="l">Parameter flow-matching action expert, π0.5</div></div>
+      <div class="stat"><div class="v">~3<small>homes</small></div><div class="l">Held-out test environments, never seen in training</div></div>
+    </div>
+
+    <div class="cards">
+      <div class="card rv">
+        <div class="tag">The Milestone · π0.5</div>
+        <h3>Cleaning a kitchen it has never seen</h3>
+        <p>Physical Intelligence's π0.5 is, by the authors' claim, the first end-to-end learning system to perform long-horizon dexterous tasks — cleaning kitchens and bedrooms, making beds, loading sinks — in entirely new homes absent from training. The line between "lab demo" and open-world generalization.</p>
+        <div class="src">SRC · pi.website/blog/pi05 · arXiv:2504.16054 · vote 3–0</div>
+      </div>
+      <div class="card rv">
+        <div class="tag">The Architecture</div>
+        <h3>Reason in language, then act</h3>
+        <p>A hierarchical, chain-of-thought inference: the model first emits a high-level subtask <em>in language</em>, then conditions a 300M-parameter flow-matching action expert on it to produce continuous motor commands — co-trained on robot data, semantic prediction, and web data.</p>
+        <div class="src">SRC · pi05.pdf §IV, App.E · vote 3–0</div>
+      </div>
+      <div class="card rv">
+        <div class="tag">The Foundation · π0</div>
+        <h3>The template the field copied</h3>
+        <p>A flow-matching VLA on a PaliGemma backbone with action chunking, at up to 50 Hz. It folds laundry from a hamper, assembles boxes, busses tables, makes coffee, stacks eggs, bags groceries — tasks the authors say no prior system reached at that complexity.</p>
+        <div class="src">SRC · arXiv:2410.24164 · vote 3–0</div>
+      </div>
+      <div class="card rv">
+        <div class="tag">The Challenger · Gemini Robotics</div>
+        <h3>Open-vocabulary dexterity</h3>
+        <p>DeepMind's VLA on Gemini 2.0 outputs actions directly, generalizes to novel objects, positions and open-vocabulary instructions, and — fine-tuned — folds an origami fox and plays cards. >80% on half of 20 short-horizon dexterous tasks, beating SOTA baselines.</p>
+        <div class="src">SRC · arXiv:2503.20020 · vote 3–0</div>
+      </div>
+    </div>
+
+    <div class="open rv">
+      <div class="lbl">Open Problems</div>
+      <ul>
+        <li>Memory and coherence across very long task sequences remain brittle.</li>
+        <li>"Generalization" rests on small held-out sets (~3 homes vs. up to 104 in training); the systems are explicitly "far from perfect."</li>
+        <li>"Unseen environment" evaluations are still largely lab-adjacent, not true unstructured deployment.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- PILLAR 02 -->
+<section id="p2">
+  <div class="wrap">
+    <div class="sec-head rv"><span class="num">02</span></div>
+    <div class="eyebrow rv">Frontier Domain</div>
+    <h2 class="rv">Cross-Embodiment Learning<span class="sub">One learned policy that transfers across diverse robot bodies — arms to full humanoids — rather than retraining from scratch per platform. Knowledge made portable across hardware, grounded in human demonstration.</span></h2>
+    <div class="rule rv" style="margin-top:34px"></div>
+    <div class="lead-row rv">
+      <span class="badge b-verified">High Confidence · Verified</span>
+      <span class="badge b-flag">Leaders: Physical Intelligence, Open X-Embodiment, DeepMind</span>
+    </div>
+
+    <div class="stats rv">
+      <div class="stat"><div class="v">10<small>k+ hrs</small></div><div class="l">Robot data behind single π0 policy, 7–8 platforms</div></div>
+      <div class="stat"><div class="v">1<small>M+</small></div><div class="l">Trajectories, Open X-Embodiment · 22 embodiments</div></div>
+      <div class="stat"><div class="v">~100<small>%</small></div><div class="l">Per-task OOD gain from human+robot co-training, HAT</div></div>
+      <div class="stat"><div class="v">20<small>shots</small></div><div class="l">Demos to transfer to a new humanoid, beating baselines</div></div>
+    </div>
+
+    <div class="cards">
+      <div class="card rv">
+        <div class="tag">Single Policy, Many Bodies</div>
+        <h3>π0 as cross-embodiment generalist</h3>
+        <p>One generalist trained on over 10,000 hours across 7–8 platforms — single-arm, dual-arm, mobile manipulators (UR5e, Franka, Trossen, Arx) — and 68 tasks. No per-platform retraining.</p>
+        <div class="src">SRC · arXiv:2410.24164 · vote 3–0</div>
+      </div>
+      <div class="card rv">
+        <div class="tag">The Shared Backbone</div>
+        <h3>Open X-Embodiment</h3>
+        <p>60 datasets from 34 labs pooled into 1M+ trajectories across 22 embodiments — arms to quadrupeds. The RT-X policy shows positive transfer: robots improve by leveraging other platforms' experience (RT-2-X ~3× on emergent tasks).</p>
+        <div class="src">SRC · arXiv:2310.08864 · vote 3–0</div>
+      </div>
+      <div class="card rv">
+        <div class="tag">Transfer to Humanoids</div>
+        <h3>Gemini Robotics adapts</h3>
+        <p>An ALOHA-2-pretrained model fine-tuned (not zero-shot) to a bi-arm Franka (~63% avg) and the Apptronik Apollo humanoid with five-fingered hands — adapting to completely novel embodiments via small-data fine-tuning.</p>
+        <div class="src">SRC · arXiv:2503.20020 · vote 3–0</div>
+      </div>
+      <div class="card rv">
+        <div class="tag">Grounded in Humans · HAT</div>
+        <h3>Learning from human video</h3>
+        <p>A unified 54-dim human-robot state-action space lets one Human Action Transformer train on human egocentric video (Vision Pro / Quest 3) plus robot data. Co-training yields ~100% per-task OOD gains and 20-shot transfer to a new humanoid.</p>
+        <div class="src">SRC · arXiv:2503.13441 · vote 3–0</div>
+      </div>
+    </div>
+
+    <div class="open rv">
+      <div class="lbl">Open Problems</div>
+      <ul>
+        <li>Cross-embodiment adaptation is mostly fine-tuning, not zero-shot transfer.</li>
+        <li>No predictive criterion exists for <em>when</em> positive transfer occurs — and it fails to appear on large, data-rich datasets without added model capacity.</li>
+        <li>Generalization to entirely new robot morphologies is largely unstudied.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- PILLAR 03 -->
+<section id="p3">
+  <div class="wrap">
+    <div class="sec-head rv"><span class="num">03</span></div>
+    <div class="eyebrow rv">Frontier Domain</div>
+    <h2 class="rv">On-Device Physical Intelligence<span class="sub">Running capable models directly on the robot — the low-latency, real-time control physical tasks demand — without sacrificing capability, and acting even when connectivity is limited.</span></h2>
+    <div class="rule rv" style="margin-top:34px"></div>
+    <div class="lead-row rv">
+      <span class="badge b-flag">Indicative · Fetched, Not Formally Verified</span>
+      <span class="badge b-flag">Leaders: Figure, DeepMind, NVIDIA</span>
+    </div>
+
+    <div class="note rv">No claim in this domain survived the formal top-25 verification cut. The sources below are primary and fetched, but treat them as directional rather than adversarially confirmed.</div>
+
+    <div class="cards">
+      <div class="card rv">
+        <div class="tag">Dual-System Control · Figure</div>
+        <h3>Helix — fast hands, slow mind</h3>
+        <p>A "System 1 / System 2" split pairing a slower VLM reasoner with a fast on-board reactive controller, the core pattern for resolving the tension between large backbones and tight real-time loops on a humanoid.</p>
+        <div class="src">SRC · figure.ai/news/helix-02</div>
+      </div>
+      <div class="card rv">
+        <div class="tag">On the Robot · DeepMind</div>
+        <h3>Gemini Robotics On-Device</h3>
+        <p>A VLA explicitly optimized to run locally on the robot with low latency and to operate under limited connectivity — bringing foundation-model capability off the cloud and onto the device.</p>
+        <div class="src">SRC · deepmind.google/blog</div>
+      </div>
+      <div class="card rv">
+        <div class="tag">The Substrate · NVIDIA</div>
+        <h3>Jetson Thor</h3>
+        <p>Positioned as the on-robot compute platform for physical AI — the hardware tier targeted by the current generation of on-device VLA deployments.</p>
+        <div class="src">SRC · developer.nvidia.com/blog</div>
+      </div>
+      <div class="card rv">
+        <div class="tag">Inference Technique · π</div>
+        <h3>Real-Time Chunking</h3>
+        <p>Physical Intelligence's method to make chunked VLA action generation viable in real time — directly attacking the latency cost of running large action models in the control loop.</p>
+        <div class="src">SRC · pi.website/research/real_time_chunking</div>
+      </div>
+    </div>
+
+    <div class="open rv">
+      <div class="lbl">Open Problems</div>
+      <ul>
+        <li>Quantitative latency / throughput results for capable VLAs on-robot under limited connectivity remain under-reported.</li>
+        <li>Model compression, distillation, and inference optimization for VLAs lack verified head-to-head benchmarks.</li>
+        <li>Which organization genuinely leads on-device capability-per-watt is not yet settled.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- PILLAR 04 -->
+<section id="p4">
+  <div class="wrap">
+    <div class="sec-head rv"><span class="num">04</span></div>
+    <div class="eyebrow rv">Frontier Domain</div>
+    <h2 class="rv">Safe & Reliable Deployment<span class="sub">Real-world reliability as a first-class research problem — the accuracy and consistency industrial settings demand, with policies that keep improving safely after deployment, closing the loop between deployment and learning.</span></h2>
+    <div class="rule rv" style="margin-top:34px"></div>
+    <div class="lead-row rv">
+      <span class="badge b-weak">Open · Weakest-Evidenced Pillar</span>
+      <span class="badge b-flag">Leaders: Physical Intelligence, Toyota Research</span>
+    </div>
+
+    <div class="note red rv">The honest headline: this pillar produced <em>zero</em> surviving verified claims. Rigorous, audited evidence for post-deployment continual learning and industrial-grade reliability is still thin. The sources below mark where to look next.</div>
+
+    <div class="cards">
+      <div class="card rv">
+        <div class="tag">Closing the Loop · π</div>
+        <h3>π*0.6</h3>
+        <p>Physical Intelligence's work aimed at improving after deployment — closing the deployment-to-learning loop so policies keep getting better in the field rather than freezing at ship time.</p>
+        <div class="src">SRC · pi.website/blog/pistar06</div>
+      </div>
+      <div class="card rv">
+        <div class="tag">Rigorous Evaluation · TRI</div>
+        <h3>Large Behavior Models</h3>
+        <p>Toyota Research Institute's careful, statistically disciplined evaluation of multitask dexterous manipulation — notable precisely for treating measurement methodology as the research object.</p>
+        <div class="src">SRC · tri.global/research</div>
+      </div>
+      <div class="card rv">
+        <div class="tag">Safety Research</div>
+        <h3>Safe VLA policies</h3>
+        <p>Emerging academic work on safety guarantees for VLA-driven robots — the early scaffolding for trusting these models in environments where mistakes carry real cost.</p>
+        <div class="src">SRC · vla-safe.github.io</div>
+      </div>
+      <div class="card rv">
+        <div class="tag">Reality Check · Epoch AI</div>
+        <h3>Where autonomy works</h3>
+        <p>A 2026 independent assessment of where robot capability actually holds up versus where the demos outrun deployment — a needed counterweight to first-party self-reports.</p>
+        <div class="src">SRC · epoch.ai/blog</div>
+      </div>
+    </div>
+
+    <div class="open rv">
+      <div class="lbl">Open Problems</div>
+      <ul>
+        <li>No settled method for safe continual improvement after deployment.</li>
+        <li>Closing the deploy-to-learning loop at industrial consistency remains unsolved.</li>
+        <li>The gap between demonstrated research generalization and reliability-at-scale is unquantified.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- REFUTED + METHOD -->
+<footer id="method">
+  <div class="wrap">
+    <div class="eyebrow rv">Verification Ledger</div>
+    <h2 class="rv">Claims that did not survive.<span class="sub">Adversarial verification killed two findings. Reporting them is part of the method.</span></h2>
+    <div class="rule rv" style="margin:30px 0 40px"></div>
+    <div class="refuted rv" style="margin-bottom:70px">
+      <div class="ref-card">
+        <div class="vote">REFUTED <span class="strike">vote 0–3</span></div>
+        <p>"Excluding web data drops OOD success 94%→74%; excluding multi-environment data →49%." — the specific π0.5 ablation figures were not supported as stated.</p>
+      </div>
+      <div class="ref-card">
+        <div class="vote">REFUTED <span class="strike">vote 1–2</span></div>
+        <p>"RT-1-X is 50% better than per-robot baselines." — the blanket framing failed, though the general positive-transfer finding stands.</p>
+      </div>
+    </div>
+
+    <div class="foot-grid rv">
+      <div>
+        <div class="eyebrow">How this was made</div>
+        <h2 style="font-size:clamp(1.8rem,3.5vw,2.6rem)">A fan-out research harness.</h2>
+        <p style="color:var(--ink-dim);margin-top:18px;max-width:520px">Six search angles ran in parallel, 29 primary sources were fetched and dedup'd, 141 falsifiable claims extracted, and the top 25 were put through a three-vote adversarial check — a claim needed two of three votes to refute to be killed. Survivors were merged, ranked by confidence, and cited.</p>
+        <p style="color:var(--ink-faint);margin-top:20px;font-style:italic;font-size:.96rem">Caveat: source mix is dominated by first-party lab reports. Several headline capabilities are research demos, not independently audited deployments. π0 is late-2024; π0.5 and Gemini Robotics are spring 2025 — successors (π0.6, Gemini Robotics 1.5) supersede some numbers while the architectural claims hold.</p>
+      </div>
+      <div class="methodology">
+        <div><span class="k">ANGLES</span> ····· <span class="num">06</span></div>
+        <div><span class="k">SOURCES FETCHED</span> ····· <span class="num">29</span></div>
+        <div><span class="k">CLAIMS EXTRACTED</span> ····· <span class="num">141</span></div>
+        <div><span class="k">CLAIMS VERIFIED</span> ····· <span class="num">25</span></div>
+        <div><span class="k">CONFIRMED</span> ····· <span class="num">23</span></div>
+        <div><span class="k">KILLED</span> ····· <span class="num">02</span></div>
+        <div><span class="k">AGENT CALLS</span> ····· <span class="num">112</span></div>
+        <div><span class="k">VERIFY VOTE</span> ····· <span class="num">3×</span></div>
+      </div>
+    </div>
+
+    <div class="colophon">
+      Field Report · The Robotics Frontier · 2026.06.04<br>
+      Compiled via adversarial deep-research harness · Sources primary &amp; cited
+    </div>
+  </div>
+</footer>
+
+<script>
+  // staggered reveal
+  const io=new IntersectionObserver((es)=>{
+    es.forEach((e,i)=>{
+      if(e.isIntersecting){
+        const sibs=[...e.target.parentElement.querySelectorAll('.rv')];
+        e.target.style.transitionDelay=(Math.min(sibs.indexOf(e.target),6)*70)+'ms';
+        e.target.classList.add('in');
+        io.unobserve(e.target);
+      }
+    });
+  },{threshold:.12,rootMargin:'0px 0px -8% 0px'});
+  document.querySelectorAll('.rv').forEach(el=>io.observe(el));
+
+  // active section in side index
+  const links=[...document.querySelectorAll('.index a')];
+  const map={overview:'#top',p1:'#p1',p2:'#p2',p3:'#p3',p4:'#p4',method:'#method'};
+  const secObs=new IntersectionObserver((es)=>{
+    es.forEach(e=>{
+      if(e.isIntersecting){
+        const id=e.target.id;const href=map[id]||'#top';
+        links.forEach(l=>l.classList.toggle('on',l.getAttribute('href')===href));
+      }
+    });
+  },{threshold:.4});
+  ['top','overview','p1','p2','p3','p4','method'].forEach(id=>{
+    const el=document.getElementById(id); if(el) secObs.observe(el);
+  });
+</script>
+</body>
+</html>
